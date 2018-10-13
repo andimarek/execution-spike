@@ -13,7 +13,6 @@ import graphql.schema.DataFetchingEnvironment;
 import graphql.schema.DataFetchingFieldSelectionSet;
 import graphql.schema.DataFetchingFieldSelectionSetImpl;
 import graphql.schema.GraphQLFieldDefinition;
-import graphql.schema.GraphQLObjectType;
 import graphql.schema.GraphQLOutputType;
 import graphql.schema.visibility.GraphqlFieldVisibility;
 import org.slf4j.Logger;
@@ -43,7 +42,6 @@ public class FetchValue {
 
     Mono<Object> fetchValue(Object source, List<Field> sameFields, ExecutionInfo executionInfo) {
         Field field = sameFields.get(0);
-        GraphQLObjectType parentType = executionInfo.castType(GraphQLObjectType.class);
         GraphQLFieldDefinition fieldDef = executionInfo.getFieldDefinition();
 
         GraphqlFieldVisibility fieldVisibility = executionContext.getGraphQLSchema().getFieldVisibility();
@@ -59,7 +57,7 @@ public class FetchValue {
                 .fields(sameFields)
                 .fieldType(fieldType)
                 .executionInfo(executionInfo)
-                .parentType(parentType)
+                .parentType(executionInfo.getParent().getType())
                 .selectionSet(fieldCollector)
                 .build();
 

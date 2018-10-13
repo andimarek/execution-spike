@@ -49,7 +49,7 @@ class ReactorExecutionTest extends Specification {
 
 
         then:
-        result == fooData
+        result.getData() == [foo: fooData]
 
 
     }

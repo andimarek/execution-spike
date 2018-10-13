@@ -14,12 +14,11 @@ import graphql.schema.visibility.GraphqlFieldVisibility;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class ReactorExecutionStrategy {
 
@@ -36,12 +35,14 @@ public class ReactorExecutionStrategy {
     }
 
     public Mono<Map<String, Object>> execute(FieldSubSelection fieldSubSelection) {
-        Mono<Map<String, Object>> result = resolveValues(fieldSubSelection).reduce(new ConcurrentHashMap<>(), (acc, fetchedValueAnalysis) -> {
-            Mono<Object> convertedValue = convertFetchedValue(fetchedValueAnalysis);
-            acc.put(fetchedValueAnalysis.getName(), convertedValue);
-            return acc;
-        });
-        return result;
+        return resolveValues(fieldSubSelection)
+                .flatMap(fetchedValueAnalysis -> Mono.zip(Mono.just(fetchedValueAnalysis), convertFetchedValue(fetchedValueAnalysis)))
+                .reduce(new ConcurrentHashMap<>(), (acc, tuple) -> {
+                    FetchedValueAnalysis fetchedValueAnalysis = tuple.getT1();
+                    Object value = tuple.getT2();
+                    acc.put(fetchedValueAnalysis.getName(), value);
+                    return acc;
+                });
     }
 
     private Mono<Object> convertFetchedValue(FetchedValueAnalysis fetchedValueAnalysis) {
@@ -50,19 +51,15 @@ public class ReactorExecutionStrategy {
         }
         if (fetchedValueAnalysis.getValueType() == FetchedValueAnalysis.FetchedValueType.OBJECT) {
             FieldSubSelection nextLevelSubSelection = fetchedValueAnalysis.getFieldSubSelection();
-            // what now? return a
+            return execute(nextLevelSubSelection).map(Object.class::cast);
         }
         if (fetchedValueAnalysis.getValueType() == FetchedValueAnalysis.FetchedValueType.LIST) {
             List<Mono<Object>> listElements = fetchedValueAnalysis.getChildren().stream().map(fetchedValueAnalysis1 -> convertFetchedValue(fetchedValueAnalysis)).collect(Collectors.toList());
-//            CopyOnWriteArrayList<Object> list = new CopyOnWriteArrayList<>();
-//            listElements.forEach(listElement -> {
-//                listElement.doOnNext(list::add);
-//            });
-
-//            Mono<Object> reduced = fluxElements.reduce(initial, (acc, listElement) -> {
-//                acc.add(listElement);
-//                return acc;
-//            });
+            Mono<List<Object>> result = Flux.merge(listElements).reduce(new ArrayList<>(), (acc, listElement) -> {
+                acc.add(listElement);
+                return acc;
+            });
+            return result.map(Object.class::cast);
         }
         return Mono.just(fetchedValueAnalysis.getCompletedValue());
     }
