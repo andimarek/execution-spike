@@ -2,7 +2,6 @@ package graphql;
 
 import graphql.execution.ExecutionContext;
 import graphql.execution.ExecutionInfo;
-import graphql.execution.ExecutionPath;
 import graphql.execution.FieldCollector;
 import graphql.execution.FieldCollectorParameters;
 import graphql.execution.NonNullableFieldWasNullException;
@@ -10,8 +9,6 @@ import graphql.execution.UnresolvedTypeException;
 import graphql.language.Field;
 import graphql.schema.CoercingSerializeException;
 import graphql.schema.GraphQLEnumType;
-import graphql.schema.GraphQLFieldDefinition;
-import graphql.schema.GraphQLList;
 import graphql.schema.GraphQLObjectType;
 import graphql.schema.GraphQLScalarType;
 import graphql.schema.GraphQLType;
@@ -37,12 +34,15 @@ import static java.util.Collections.singletonList;
 public class FetchedValueAnalyzer {
 
     private final ExecutionContext executionContext;
-    private final ResolveType resolveType;
-    private final FieldCollector fieldCollector = new FieldCollector();
+    ResolveType resolveType;
+    FieldCollector fieldCollector = new FieldCollector();
+    ExecutionInfoFactory executionInfoFactory;
+
 
     public FetchedValueAnalyzer(ExecutionContext executionContext) {
         this.executionContext = executionContext;
         this.resolveType = new ResolveType(executionContext);
+        this.executionInfoFactory = new ExecutionInfoFactory(executionContext);
     }
 
     private static final Logger log = LoggerFactory.getLogger(FetchedValueAnalyzer.class);
@@ -118,24 +118,13 @@ public class FetchedValueAnalyzer {
     private FetchedValueAnalysis analyzeIterable(Iterable<Object> iterableValues, String name, ExecutionInfo executionInfo) {
 
         Collection<Object> values = FpKit.toCollection(iterableValues);
-        GraphQLList fieldType = executionInfo.castType(GraphQLList.class);
-        GraphQLFieldDefinition fieldDef = executionInfo.getFieldDefinition();
-        Field field = executionInfo.getField();
-
         List<FetchedValueAnalysis> children = new ArrayList<>();
         int index = 0;
         for (Object item : values) {
-            ExecutionPath indexedPath = executionInfo.getPath().segment(index);
 
-            ExecutionInfo executionInfoForListElement = ExecutionInfo.newExecutionInfo()
-                    .parentInfo(executionInfo)
-                    .type(fieldType.getWrappedType())
-                    .path(indexedPath)
-                    .fieldDefinition(fieldDef)
-                    .field(field)
-                    .build();
+            ExecutionInfo executionInfoForListElement = executionInfoFactory.newExecutionInfoForListElement(executionInfo, index);
 
-            children.add(analyzeFetchedValue(item, name, Arrays.asList(field), executionInfoForListElement));
+            children.add(analyzeFetchedValue(item, name, Arrays.asList(executionInfo.getField()), executionInfoForListElement));
             index++;
         }
         return newFetchedValueAnalysis(LIST)
@@ -144,6 +133,7 @@ public class FetchedValueAnalyzer {
                 .build();
 
     }
+
 
     private FetchedValueAnalysis analyzeScalarValue(Object fetchedValue, String name, GraphQLScalarType scalarType, ExecutionInfo executionInfo) {
         if (fetchedValue == null) {
