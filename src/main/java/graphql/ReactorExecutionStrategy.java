@@ -82,8 +82,8 @@ public class ReactorExecutionStrategy {
         return Flux.mergeSequential(monosWithErrorHandler)
                 .collectList()
                 .cast(Object.class)
-                .onErrorResume(NonNullableFieldWasNullException.class, e -> handNonNullableException(fetchedValueAnalysis, e))
-                .map(this::replaceNullValuesWithAcutalNull);
+                .onErrorResume(NonNullableFieldWasNullException.class, e -> handNonNullableExceptionForWholeList(fetchedValueAnalysis, e))
+                .map(this::replaceNullValuesWithActualNull);
     }
 
     private Mono<?> handleNonNullableExceptionForListElement(boolean listElementNonNull, NonNullableFieldWasNullException e, FetchedValueAnalysis parentAnalysis) {
@@ -94,7 +94,7 @@ public class ReactorExecutionStrategy {
         }
     }
 
-    private Mono<?> handNonNullableException(FetchedValueAnalysis fetchedValueAnalysis, NonNullableFieldWasNullException e) {
+    private Mono<?> handNonNullableExceptionForWholeList(FetchedValueAnalysis fetchedValueAnalysis, NonNullableFieldWasNullException e) {
         if (fetchedValueAnalysis.getExecutionInfo().isNonNullType()) {
             return Mono.error(new NonNullableFieldWasNullException(e));
         } else {
@@ -102,7 +102,7 @@ public class ReactorExecutionStrategy {
         }
     }
 
-    private Object replaceNullValuesWithAcutalNull(Object listOrNullValue) {
+    private Object replaceNullValuesWithActualNull(Object listOrNullValue) {
         if (listOrNullValue instanceof List) {
             return ((List) listOrNullValue).stream().map(o -> o == NULL_VALUE ? null : o).collect(Collectors.toList());
         } else {
