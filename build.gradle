@@ -5,7 +5,7 @@ plugins {
 
 dependencyManagement {
     imports {
-        mavenBom "io.projectreactor:reactor-bom:Bismuth-RELEASE"
+        mavenBom "io.projectreactor:reactor-bom:Californium-SR1"
     }
 }
 
