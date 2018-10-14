@@ -53,17 +53,16 @@ public class FetchedValueAnalyzer {
      * enum: same as scalar
      * list: list of X: X can be list again, list of scalars or enum or objects
      */
-    public FetchedValueAnalysis analyzeFetchedValue(Object value, String name, List<Field> field, ExecutionInfo executionInfo) throws NonNullableFieldWasNullException {
-        Object unboxedValue = UnboxPossibleOptional.unboxPossibleOptional(value);
+    public FetchedValueAnalysis analyzeFetchedValue(Object toAnalyze, String name, List<Field> field, ExecutionInfo executionInfo) throws NonNullableFieldWasNullException {
         GraphQLType fieldType = executionInfo.getType();
 
         FetchedValueAnalysis result = null;
         if (isList(fieldType)) {
-            result = analyzeList(unboxedValue, name, executionInfo);
+            result = analyzeList(toAnalyze, name, executionInfo);
         } else if (fieldType instanceof GraphQLScalarType) {
-            result = analyzeScalarValue(unboxedValue, name, (GraphQLScalarType) fieldType, executionInfo);
+            result = analyzeScalarValue(toAnalyze, name, (GraphQLScalarType) fieldType, executionInfo);
         } else if (fieldType instanceof GraphQLEnumType) {
-            result = analyzeEnumValue(unboxedValue, name, (GraphQLEnumType) fieldType, executionInfo);
+            result = analyzeEnumValue(toAnalyze, name, (GraphQLEnumType) fieldType, executionInfo);
         }
         if (result != null) {
             result.setExecutionInfo(executionInfo);
@@ -75,8 +74,8 @@ public class FetchedValueAnalyzer {
         //
         GraphQLObjectType resolvedObjectType;
         try {
-            resolvedObjectType = resolveType.resolveType(field.get(0), unboxedValue, executionInfo.getArguments(), fieldType);
-            return analyzeObject(unboxedValue, name, resolvedObjectType, executionInfo);
+            resolvedObjectType = resolveType.resolveType(field.get(0), toAnalyze, executionInfo.getArguments(), fieldType);
+            return analyzeObject(toAnalyze, name, resolvedObjectType, executionInfo);
         } catch (UnresolvedTypeException ex) {
             return handleUnresolvedTypeProblem(name, executionInfo, ex);
         }
@@ -92,16 +91,16 @@ public class FetchedValueAnalyzer {
                 .build();
     }
 
-    private FetchedValueAnalysis analyzeList(Object fetchedValue, String name, ExecutionInfo executionInfo) {
-        if (fetchedValue == null) {
+    private FetchedValueAnalysis analyzeList(Object toAnalyze, String name, ExecutionInfo executionInfo) {
+        if (toAnalyze == null) {
             return newFetchedValueAnalysis(LIST)
                     .name(name)
                     .nullValue()
                     .build();
         }
 
-        if (fetchedValue.getClass().isArray() || fetchedValue instanceof Iterable) {
-            Collection<Object> collection = FpKit.toCollection(fetchedValue);
+        if (toAnalyze.getClass().isArray() || toAnalyze instanceof Iterable) {
+            Collection<Object> collection = FpKit.toCollection(toAnalyze);
             return analyzeIterable(collection, name, executionInfo);
         } else {
             TypeMismatchError error = new TypeMismatchError(executionInfo.getPath(), executionInfo.getType());
@@ -217,8 +216,8 @@ public class FetchedValueAnalyzer {
 
         FetchedValueAnalysis result = newFetchedValueAnalysis(OBJECT)
                 .name(name)
+                .completedValue(fetchedValue)
                 .fieldSubSelection(fieldSubSelection)
-                .fetchedValue(fetchedValue)
                 .build();
         result.setExecutionInfo(newExecutionInfoWithResolvedType);
         return result;

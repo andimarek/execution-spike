@@ -20,6 +20,8 @@ import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoSink;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletionStage;
@@ -27,20 +29,20 @@ import java.util.stream.Collectors;
 
 import static graphql.schema.DataFetchingEnvironmentBuilder.newDataFetchingEnvironment;
 
-public class FetchValue {
+public class ValueFetcher {
 
     private final ExecutionContext executionContext;
 
     ValuesResolver valuesResolver = new ValuesResolver();
 
-    private static final Logger log = LoggerFactory.getLogger(FetchValue.class);
+    private static final Logger log = LoggerFactory.getLogger(ValueFetcher.class);
 
-    public FetchValue(ExecutionContext executionContext) {
+    public ValueFetcher(ExecutionContext executionContext) {
         this.executionContext = executionContext;
     }
 
 
-    Mono<Object> fetchValue(Object source, List<Field> sameFields, ExecutionInfo executionInfo) {
+    public Mono<FetchedValue> fetchValue(Object source, List<Field> sameFields, ExecutionInfo executionInfo) {
         Field field = sameFields.get(0);
         GraphQLFieldDefinition fieldDef = executionInfo.getFieldDefinition();
 
@@ -65,12 +67,22 @@ public class FetchValue {
         ExecutionPath path = executionInfo.getPath();
         return Mono
                 .create(sink -> createMonoImpl(fieldDef, environment, executionId, path, sink))
+                .map(rawFetchedValue -> new FetchedValue(rawFetchedValue, rawFetchedValue, Collections.emptyList()))
                 .onErrorResume(exception -> {
-                    //TODO: handle error
-                    return Mono.empty();
+                    ExceptionWhileDataFetching exceptionWhileDataFetching = new ExceptionWhileDataFetching(path, exception, field.getSourceLocation());
+                    FetchedValue fetchedValue = new FetchedValue(
+                            null,
+                            null,
+                            Collections.singletonList(exceptionWhileDataFetching));
+                    return Mono.just(fetchedValue);
                 })
                 .map(result -> unboxPossibleDataFetcherResult(sameFields, path, result))
-                .map(UnboxPossibleOptional::unboxPossibleOptional);
+                .map(this::unboxPossibleOptional);
+    }
+
+    private FetchedValue unboxPossibleOptional(FetchedValue result) {
+        return new FetchedValue(UnboxPossibleOptional.unboxPossibleOptional(result.getFetchedValue()), result.getRawFetchedValue(), result.getErrors());
+
     }
 
     private void createMonoImpl(GraphQLFieldDefinition fieldDef, DataFetchingEnvironment environment, ExecutionId executionId, ExecutionPath path, MonoSink<Object> sink) {
@@ -110,31 +122,20 @@ public class FetchValue {
 
     }
 
-    private Object unboxPossibleDataFetcherResult(List<Field> sameField, ExecutionPath executionPath, Object result) {
-        if (result instanceof DataFetcherResult) {
-            DataFetcherResult<?> dataFetcherResult = (DataFetcherResult) result;
-            List<AbsoluteGraphQLError> errors = dataFetcherResult.getErrors().stream()
+    private FetchedValue unboxPossibleDataFetcherResult(List<Field> sameField, ExecutionPath executionPath, FetchedValue result) {
+        if (result.getFetchedValue() instanceof DataFetcherResult) {
+            DataFetcherResult<?> dataFetcherResult = (DataFetcherResult) result.getFetchedValue();
+            List<AbsoluteGraphQLError> addErrors = dataFetcherResult.getErrors().stream()
                     .map(relError -> new AbsoluteGraphQLError(sameField, executionPath, relError))
                     .collect(Collectors.toList());
-            //TODO: respect errors
-            return dataFetcherResult.getData();
-
+            List<GraphQLError> newErrors = new ArrayList<>(result.getErrors());
+            newErrors.addAll(addErrors);
+            return new FetchedValue(dataFetcherResult.getData(), result.getRawFetchedValue(), newErrors);
         } else {
             return result;
         }
     }
 
 
-    // TODO: use later for error handling
-    public static class FetchValueResult {
-        private final Object fetchedValue;
-        private final Object rawFetchedValue;
-        private final List<GraphQLError> errors;
 
-        public FetchValueResult(Object fetchedValue, Object rawFetchedValue, List<GraphQLError> errors) {
-            this.fetchedValue = fetchedValue;
-            this.rawFetchedValue = rawFetchedValue;
-            this.errors = errors;
-        }
-    }
 }

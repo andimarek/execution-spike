@@ -14,7 +14,7 @@ import java.util.stream.Collectors;
 public class ReactorExecutionStrategy {
 
     ExecutionInfoFactory executionInfoFactory;
-    FetchValue fetchValue;
+    ValueFetcher valueFetcher;
 
     private final ExecutionContext executionContext;
     private FetchedValueAnalyzer fetchedValueAnalyzer;
@@ -22,7 +22,7 @@ public class ReactorExecutionStrategy {
     public ReactorExecutionStrategy(ExecutionContext executionContext) {
         this.executionContext = executionContext;
         this.fetchedValueAnalyzer = new FetchedValueAnalyzer(executionContext);
-        this.fetchValue = new FetchValue(executionContext);
+        this.valueFetcher = new ValueFetcher(executionContext);
         this.executionInfoFactory = new ExecutionInfoFactory(executionContext);
     }
 
@@ -38,6 +38,9 @@ public class ReactorExecutionStrategy {
     }
 
     private Mono<Object> convertFetchedValue(FetchedValueAnalysis fetchedValueAnalysis) {
+        if (fetchedValueAnalysis.isNullValue() && fetchedValueAnalysis.getExecutionInfo().isNonNullType()) {
+            return Mono.empty();
+        }
         if (fetchedValueAnalysis.isNullValue()) {
             return Mono.empty();
         }
@@ -64,7 +67,7 @@ public class ReactorExecutionStrategy {
                     List<Field> sameFields = entry.getValue();
                     String name = entry.getKey();
                     ExecutionInfo newExecutionInfo = executionInfoFactory.newExecutionInfoForSubField(sameFields, fieldSubSelection.getExecutionInfo());
-                    return fetchValue
+                    return valueFetcher
                             .fetchValue(fieldSubSelection.getSource(), sameFields, newExecutionInfo)
                             .map(fetchValue -> analyseValue(fetchValue, name, sameFields, newExecutionInfo));
                 })
@@ -74,8 +77,10 @@ public class ReactorExecutionStrategy {
     }
 
 
-    private FetchedValueAnalysis analyseValue(Object fetchedValue, String name, List<Field> field, ExecutionInfo executionInfo) {
-        return fetchedValueAnalyzer.analyzeFetchedValue(fetchedValue, name, field, executionInfo);
+    private FetchedValueAnalysis analyseValue(FetchedValue fetchedValue, String name, List<Field> field, ExecutionInfo executionInfo) {
+        FetchedValueAnalysis fetchedValueAnalysis = fetchedValueAnalyzer.analyzeFetchedValue(fetchedValue.getFetchedValue(), name, field, executionInfo);
+        fetchedValueAnalysis.setFetchedValue(fetchedValue);
+        return fetchedValueAnalysis;
     }
 
 

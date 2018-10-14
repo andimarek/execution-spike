@@ -5,7 +5,6 @@ import graphql.language.Field;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 public class FetchedValueAnalysis {
 
@@ -21,9 +20,7 @@ public class FetchedValueAnalysis {
     private FetchedValueType valueType;
     private List<GraphQLError> errors;
 
-    // not always available
     private Object completedValue;
-    private Object fetchedValue;
 
     // only available for LIST
     private List<FetchedValueAnalysis> children;
@@ -37,6 +34,8 @@ public class FetchedValueAnalysis {
     private FieldSubSelection fieldSubSelection;
 
     private ExecutionInfo executionInfo;
+    private FetchedValue fetchedValue;
+
 
     private FetchedValueAnalysis(Builder builder) {
         setValueType(builder.valueType);
@@ -106,11 +105,11 @@ public class FetchedValueAnalysis {
     }
 
 
-    public Object getFetchedValue() {
+    public FetchedValue getFetchedValue() {
         return fetchedValue;
     }
 
-    public void setFetchedValue(Object fetchedValue) {
+    public void setFetchedValue(FetchedValue fetchedValue) {
         this.fetchedValue = fetchedValue;
     }
 
@@ -158,7 +157,7 @@ public class FetchedValueAnalysis {
         private FetchedValueType valueType;
         private List<GraphQLError> errors = new ArrayList<>();
         private Object completedValue;
-        private Object fetchedValue;
+        private FetchedValue fetchedValue;
         private List<FetchedValueAnalysis> children;
         private FieldSubSelection fieldSubSelection;
         private boolean nullValue;
@@ -190,7 +189,7 @@ public class FetchedValueAnalysis {
             return this;
         }
 
-        public Builder fetchedValue(Object val) {
+        public Builder fetchedValue(FetchedValue val) {
             fetchedValue = val;
             return this;
         }
