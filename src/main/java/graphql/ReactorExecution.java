@@ -4,19 +4,11 @@ import graphql.execution.ExecutionContext;
 import graphql.execution.ExecutionId;
 import graphql.execution.ExecutionInfo;
 import graphql.execution.ExecutionPath;
-import graphql.execution.ExecutionStrategy;
-import graphql.execution.ExecutionStrategyParameters;
 import graphql.execution.FieldCollector;
 import graphql.execution.FieldCollectorParameters;
 import graphql.execution.MissingRootTypeException;
-import graphql.execution.NonNullableFieldValidator;
 import graphql.execution.NonNullableFieldWasNullException;
 import graphql.execution.ValuesResolver;
-import graphql.execution.defer.DeferSupport;
-import graphql.execution.instrumentation.InstrumentationContext;
-import graphql.execution.instrumentation.InstrumentationState;
-import graphql.execution.instrumentation.parameters.InstrumentationExecuteOperationParameters;
-import graphql.execution.instrumentation.parameters.InstrumentationExecutionParameters;
 import graphql.language.Document;
 import graphql.language.Field;
 import graphql.language.FragmentDefinition;
@@ -25,22 +17,17 @@ import graphql.language.OperationDefinition;
 import graphql.language.VariableDefinition;
 import graphql.schema.GraphQLObjectType;
 import graphql.schema.GraphQLSchema;
-import org.reactivestreams.Publisher;
 import reactor.core.publisher.Mono;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 
 import static graphql.Assert.assertShouldNeverHappen;
 import static graphql.execution.ExecutionContextBuilder.newExecutionContextBuilder;
 import static graphql.execution.ExecutionInfo.newExecutionInfo;
-import static graphql.execution.ExecutionStrategyParameters.newParameters;
 import static graphql.language.OperationDefinition.Operation.MUTATION;
 import static graphql.language.OperationDefinition.Operation.QUERY;
 import static graphql.language.OperationDefinition.Operation.SUBSCRIPTION;
-import static java.util.concurrent.CompletableFuture.completedFuture;
 
 public class ReactorExecution {
 
@@ -111,7 +98,11 @@ public class ReactorExecution {
             return ExecutionResultImpl.newExecutionResult()
                     .data(stringObjectMap)
                     .build();
-        });
+        })
+                .cast(ExecutionResult.class)
+                .onErrorResume(NonNullableFieldWasNullException.class, e -> Mono.just(ExecutionResultImpl.newExecutionResult()
+                        .data(null)
+                        .build()));
     }
 
     private GraphQLObjectType getOperationRootType(GraphQLSchema graphQLSchema, OperationDefinition operationDefinition) {
