@@ -153,6 +153,22 @@ public class FetchedValueAnalysis {
         this.fieldSubSelection = fieldSubSelection;
     }
 
+    @Override
+    public String toString() {
+        return "FetchedValueAnalysis{" +
+                "valueType=" + valueType +
+                ", errors=" + errors +
+                ", completedValue=" + completedValue +
+                ", children=" + children +
+                ", nullValue=" + nullValue +
+                ", field=" + field +
+                ", name='" + name + '\'' +
+                ", fieldSubSelection=" + fieldSubSelection +
+                ", executionInfo=" + executionInfo +
+                ", fetchedValue=" + fetchedValue +
+                '}';
+    }
+
     public static final class Builder {
         private FetchedValueType valueType;
         private List<GraphQLError> errors = new ArrayList<>();

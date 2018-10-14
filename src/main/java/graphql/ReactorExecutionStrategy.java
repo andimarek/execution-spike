@@ -6,10 +6,12 @@ import graphql.language.Field;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
+
+import static graphql.ValueFetcher.NULL_VALUE;
 
 public class ReactorExecutionStrategy {
 
@@ -18,6 +20,7 @@ public class ReactorExecutionStrategy {
 
     private final ExecutionContext executionContext;
     private FetchedValueAnalyzer fetchedValueAnalyzer;
+
 
     public ReactorExecutionStrategy(ExecutionContext executionContext) {
         this.executionContext = executionContext;
@@ -29,20 +32,21 @@ public class ReactorExecutionStrategy {
     public Mono<Map<String, Object>> execute(FieldSubSelection fieldSubSelection) {
         return fetchAndAnalyze(fieldSubSelection)
                 .flatMap(fetchedValueAnalysis -> Mono.zip(Mono.just(fetchedValueAnalysis), convertFetchedValue(fetchedValueAnalysis)))
-                .reduce(new ConcurrentHashMap<>(), (acc, tuple) -> {
+                // here it is LinkedHashMap to allow for null values, this means reduce must be non concurrent
+                .reduce(new LinkedHashMap<>(), (acc, tuple) -> {
                     FetchedValueAnalysis fetchedValueAnalysis = tuple.getT1();
                     Object value = tuple.getT2();
+                    if (value == NULL_VALUE) {
+                        value = null;
+                    }
                     acc.put(fetchedValueAnalysis.getName(), value);
                     return acc;
                 });
     }
 
     private Mono<Object> convertFetchedValue(FetchedValueAnalysis fetchedValueAnalysis) {
-        if (fetchedValueAnalysis.isNullValue() && fetchedValueAnalysis.getExecutionInfo().isNonNullType()) {
-            return Mono.empty();
-        }
         if (fetchedValueAnalysis.isNullValue()) {
-            return Mono.empty();
+            return Mono.just(NULL_VALUE);
         }
         if (fetchedValueAnalysis.getValueType() == FetchedValueAnalysis.FetchedValueType.OBJECT) {
             FieldSubSelection nextLevelSubSelection = fetchedValueAnalysis.getFieldSubSelection();
@@ -54,7 +58,8 @@ public class ReactorExecutionStrategy {
                     .stream()
                     .map(this::convertFetchedValue)
                     .collect(Collectors.toList());
-            Mono<List<Object>> result = Flux.merge(listElements).collectList();
+            Mono<List<Object>> result = Flux.merge(listElements).collectList()
+                    .map(objects -> objects.stream().map(o -> o == NULL_VALUE ? null : o).collect(Collectors.toList()));
             return result.map(Object.class::cast);
         }
         return Mono.just(fetchedValueAnalysis.getCompletedValue());

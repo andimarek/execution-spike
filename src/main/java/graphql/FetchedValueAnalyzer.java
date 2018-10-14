@@ -74,6 +74,12 @@ public class FetchedValueAnalyzer {
         //
         GraphQLObjectType resolvedObjectType;
         try {
+            if (toAnalyze == null) {
+                return FetchedValueAnalysis.newFetchedValueAnalysis(OBJECT)
+                        .name(name)
+                        .nullValue()
+                        .build();
+            }
             resolvedObjectType = resolveType.resolveType(field.get(0), toAnalyze, executionInfo.getArguments(), fieldType);
             return analyzeObject(toAnalyze, name, resolvedObjectType, executionInfo);
         } catch (UnresolvedTypeException ex) {

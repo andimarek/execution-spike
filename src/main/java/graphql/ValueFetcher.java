@@ -37,6 +37,8 @@ public class ValueFetcher {
 
     private static final Logger log = LoggerFactory.getLogger(ValueFetcher.class);
 
+    public static final Object NULL_VALUE = new Object();
+
     public ValueFetcher(ExecutionContext executionContext) {
         this.executionContext = executionContext;
     }
@@ -100,7 +102,7 @@ public class ValueFetcher {
 
     private void handleFetchedValue(Object fetchedValue, MonoSink<Object> sink) {
         if (fetchedValue == null) {
-            sink.success();
+            sink.success(NULL_VALUE);
             return;
         }
         if (fetchedValue instanceof CompletionStage) {
@@ -135,7 +137,6 @@ public class ValueFetcher {
             return result;
         }
     }
-
 
 
 }
