@@ -77,6 +77,7 @@ public class FetchedValueAnalyzer {
             if (toAnalyze == null) {
                 return FetchedValueAnalysis.newFetchedValueAnalysis(OBJECT)
                         .name(name)
+                        .executionInfo(executionInfo)
                         .nullValue()
                         .build();
             }

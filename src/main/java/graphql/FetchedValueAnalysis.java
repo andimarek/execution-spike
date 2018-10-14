@@ -47,6 +47,7 @@ public class FetchedValueAnalysis {
         setField(builder.field);
         setName(builder.name);
         setFieldSubSelection(builder.fieldSubSelection);
+        setExecutionInfo(builder.executionInfo);
     }
 
 
@@ -61,6 +62,7 @@ public class FetchedValueAnalysis {
         builder.field = copy.getField();
         builder.name = copy.getName();
         builder.fieldSubSelection = copy.fieldSubSelection;
+        builder.executionInfo = copy.getExecutionInfo();
         return builder;
     }
 
@@ -179,6 +181,7 @@ public class FetchedValueAnalysis {
         private boolean nullValue;
         private Field field;
         private String name;
+        private ExecutionInfo executionInfo;
 
         private Builder() {
         }
@@ -233,6 +236,11 @@ public class FetchedValueAnalysis {
 
         public Builder fieldSubSelection(FieldSubSelection fieldSubSelection) {
             this.fieldSubSelection = fieldSubSelection;
+            return this;
+        }
+
+        public Builder executionInfo(ExecutionInfo executionInfo) {
+            this.executionInfo = executionInfo;
             return this;
         }
 

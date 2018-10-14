@@ -2,6 +2,7 @@ package graphql;
 
 import graphql.execution.ExecutionContext;
 import graphql.execution.ExecutionInfo;
+import graphql.execution.NonNullableFieldWasNullException;
 import graphql.language.Field;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -45,6 +46,9 @@ public class ReactorExecutionStrategy {
     }
 
     private Mono<Object> convertFetchedValue(FetchedValueAnalysis fetchedValueAnalysis) {
+        if (fetchedValueAnalysis.isNullValue() && fetchedValueAnalysis.getExecutionInfo().isNonNullType()) {
+            return Mono.error(new NonNullableFieldWasNullException(fetchedValueAnalysis.getExecutionInfo(), fetchedValueAnalysis.getExecutionInfo().getPath()));
+        }
         if (fetchedValueAnalysis.isNullValue()) {
             return Mono.just(NULL_VALUE);
         }
@@ -58,11 +62,23 @@ public class ReactorExecutionStrategy {
                     .stream()
                     .map(this::convertFetchedValue)
                     .collect(Collectors.toList());
-            Mono<List<Object>> result = Flux.merge(listElements).collectList()
-                    .map(objects -> objects.stream().map(o -> o == NULL_VALUE ? null : o).collect(Collectors.toList()));
-            return result.map(Object.class::cast);
+            return convertList(fetchedValueAnalysis, listElements);
         }
         return Mono.just(fetchedValueAnalysis.getCompletedValue());
+    }
+
+    private Mono<Object> convertList(FetchedValueAnalysis fetchedValueAnalysis, List<Mono<Object>> listElements) {
+        return Flux.merge(listElements)
+                .collectList()
+                .cast(Object.class)
+                .onErrorResume(NonNullableFieldWasNullException.class, e -> Mono.just(NULL_VALUE))
+                .map(listOrNullValue -> {
+                    if (listOrNullValue instanceof List) {
+                        return ((List) listOrNullValue).stream().map(o -> o == NULL_VALUE ? null : o).collect(Collectors.toList());
+                    } else {
+                        return listOrNullValue;
+                    }
+                });
     }
 
 
