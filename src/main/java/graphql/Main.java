@@ -16,9 +16,12 @@ public class Main {
 //            return integer;
 //        }).subscribe();
         Mono<Object> monoList = Flux.merge(list)
-//                .onErrorResume(RuntimeException.class, e -> {
-//                    return Mono.just(ValueFetcher.NULL_VALUE);
-//                }).map(Object.class::cast)
+                .doOnNext(o -> {
+                    System.out.println("recveived value" + o);
+                })
+                .onErrorResume(RuntimeException.class, e -> {
+                    return Mono.just(ValueFetcher.NULL_VALUE);
+                }).map(Object.class::cast)
                 .collectList().map(Object.class::cast).onErrorResume(exception -> {
                     System.out.println("Exception");
                     return Mono.just(ValueFetcher.NULL_VALUE);

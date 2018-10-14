@@ -4,6 +4,9 @@ import graphql.execution.ExecutionContext;
 import graphql.execution.ExecutionInfo;
 import graphql.execution.NonNullableFieldWasNullException;
 import graphql.language.Field;
+import graphql.schema.GraphQLList;
+import graphql.schema.GraphQLNonNull;
+import graphql.schema.GraphQLType;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -68,17 +71,43 @@ public class ReactorExecutionStrategy {
     }
 
     private Mono<Object> convertList(FetchedValueAnalysis fetchedValueAnalysis, List<Mono<Object>> listElements) {
-        return Flux.merge(listElements)
+        GraphQLType listElementType = fetchedValueAnalysis.getExecutionInfo().castType(GraphQLList.class).getWrappedType();
+        boolean listElementNonNull = listElementType instanceof GraphQLNonNull;
+
+        List<Mono<Object>> monosWithErrorHandler = listElements.stream().map(elementMono -> elementMono
+                .onErrorResume(NonNullableFieldWasNullException.class, e ->
+                        handleNonNullableExceptionForListElement(listElementNonNull, e, fetchedValueAnalysis))).
+                collect(Collectors.toList());
+
+        return Flux.mergeSequential(monosWithErrorHandler)
                 .collectList()
                 .cast(Object.class)
-                .onErrorResume(NonNullableFieldWasNullException.class, e -> Mono.just(NULL_VALUE))
-                .map(listOrNullValue -> {
-                    if (listOrNullValue instanceof List) {
-                        return ((List) listOrNullValue).stream().map(o -> o == NULL_VALUE ? null : o).collect(Collectors.toList());
-                    } else {
-                        return listOrNullValue;
-                    }
-                });
+                .onErrorResume(NonNullableFieldWasNullException.class, e -> handNonNullableException(fetchedValueAnalysis, e))
+                .map(this::replaceNullValuesWithAcutalNull);
+    }
+
+    private Mono<?> handleNonNullableExceptionForListElement(boolean listElementNonNull, NonNullableFieldWasNullException e, FetchedValueAnalysis parentAnalysis) {
+        if (listElementNonNull) {
+            return Mono.error(new NonNullableFieldWasNullException(e));
+        } else {
+            return Mono.just(NULL_VALUE);
+        }
+    }
+
+    private Mono<?> handNonNullableException(FetchedValueAnalysis fetchedValueAnalysis, NonNullableFieldWasNullException e) {
+        if (fetchedValueAnalysis.getExecutionInfo().isNonNullType()) {
+            return Mono.error(new NonNullableFieldWasNullException(e));
+        } else {
+            return Mono.just(NULL_VALUE);
+        }
+    }
+
+    private Object replaceNullValuesWithAcutalNull(Object listOrNullValue) {
+        if (listOrNullValue instanceof List) {
+            return ((List) listOrNullValue).stream().map(o -> o == NULL_VALUE ? null : o).collect(Collectors.toList());
+        } else {
+            return listOrNullValue;
+        }
     }
 
 
