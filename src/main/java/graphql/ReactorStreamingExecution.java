@@ -13,6 +13,7 @@ import graphql.language.FragmentDefinition;
 import graphql.language.NodeUtil;
 import graphql.language.OperationDefinition;
 import graphql.language.VariableDefinition;
+import graphql.parser.Parser;
 import graphql.schema.GraphQLObjectType;
 import graphql.schema.GraphQLSchema;
 import reactor.core.publisher.Flux;
@@ -26,6 +27,11 @@ import static graphql.execution.ExecutionInfo.newExecutionInfo;
 public class ReactorStreamingExecution {
 
     private final FieldCollector fieldCollector = new FieldCollector();
+
+    public Flux<ResultLeaf> execute(String query,
+                                    GraphQLSchema graphQLSchema) {
+        return execute(new Parser().parseDocument(query), graphQLSchema, ExecutionId.generate(), ExecutionInput.newExecutionInput().build());
+    }
 
     public Flux<ResultLeaf> execute(Document document,
                                     GraphQLSchema graphQLSchema,

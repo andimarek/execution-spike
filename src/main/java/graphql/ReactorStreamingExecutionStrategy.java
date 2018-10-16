@@ -29,12 +29,18 @@ public class ReactorStreamingExecutionStrategy {
     }
 
     public Flux<ResultLeaf> execute(FieldSubSelection fieldSubSelection) {
-        return Flux.create(sink -> executeImpl(fieldSubSelection, sink));
+        return Flux.create(sink -> executeImpl(fieldSubSelection, sink, true));
     }
 
-    private void executeImpl(FieldSubSelection fieldSubSelection, FluxSink<ResultLeaf> sink) {
+    private void executeImpl(FieldSubSelection fieldSubSelection, FluxSink<ResultLeaf> sink, boolean firstLevel) {
         fetchAndAnalyze(fieldSubSelection)
-                .subscribe(fetchedValueAnalysis -> convertFetchedValue(fetchedValueAnalysis, sink));
+                .subscribe(fetchedValueAnalysis -> convertFetchedValue(fetchedValueAnalysis, sink),
+                        sink::error,
+                        () -> {
+                            if (firstLevel) {
+                                sink.complete();
+                            }
+                        });
     }
 
     private void convertFetchedValue(FetchedValueAnalysis fetchedValueAnalysis, FluxSink<ResultLeaf> sink) {
@@ -44,7 +50,7 @@ public class ReactorStreamingExecutionStrategy {
         }
         if (fetchedValueAnalysis.getValueType() == FetchedValueAnalysis.FetchedValueType.OBJECT) {
             FieldSubSelection nextLevelSubSelection = fetchedValueAnalysis.getFieldSubSelection();
-            executeImpl(nextLevelSubSelection, sink);
+            executeImpl(nextLevelSubSelection, sink, false);
             return;
         }
         if (fetchedValueAnalysis.getValueType() == FetchedValueAnalysis.FetchedValueType.LIST) {

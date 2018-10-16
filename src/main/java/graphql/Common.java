@@ -1,6 +1,5 @@
 package graphql;
 
-import graphql.execution.ExecutionPath;
 import graphql.execution.MissingRootTypeException;
 import graphql.language.OperationDefinition;
 import graphql.schema.GraphQLObjectType;
@@ -43,9 +42,8 @@ public class Common {
         }
     }
 
-    public static void insertValueInResult(ResultLeaf resultLeaf, Map<String, Object> result) {
-        ExecutionPath executionPath = resultLeaf.getExecutionPath();
-        List<Object> pathList = executionPath.toList();
+    public static void insertValueInResult(ResultLeaf resultLeaf, Map<Object, Object> result) {
+        List<Object> pathList = resultLeaf.getExecutionPath();
 
         Object curContainer = result;
         int existingIndex = 0;

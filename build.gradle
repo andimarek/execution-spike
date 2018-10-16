@@ -21,8 +21,10 @@ repositories {
 dependencies {
     compile 'io.projectreactor:reactor-core'
     compile 'com.graphql-java:graphql-java:2018-10-10T20-51-25-232373f'
+    compile 'com.fasterxml.jackson.core:jackson-databind:2.9.4'
     implementation 'io.rsocket:rsocket-core:0.11.5'
     implementation 'io.rsocket:rsocket-transport-netty:0.11.5'
+    implementation('com.google.guava:guava:26.0-jre')
     testCompile group: 'junit', name: 'junit', version: '4.11'
     testCompile 'org.spockframework:spock-core:1.1-groovy-2.4'
     testCompile 'org.codehaus.groovy:groovy-all:2.4.13'

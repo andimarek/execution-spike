@@ -2,16 +2,30 @@ package graphql;
 
 import graphql.execution.ExecutionPath;
 
+import java.util.List;
+
 public class ResultLeaf {
-    private final ExecutionPath executionPath;
-    private final Object value;
+    private List<Object> executionPath;
+    private Object value;
+
+    public ResultLeaf() {
+
+    }
 
     public ResultLeaf(ExecutionPath executionPath, Object value) {
-        this.executionPath = executionPath;
+        this.executionPath = executionPath.toList();
         this.value = value;
     }
 
-    public ExecutionPath getExecutionPath() {
+    public void setExecutionPath(List<Object> executionPath) {
+        this.executionPath = executionPath;
+    }
+
+    public void setValue(Object value) {
+        this.value = value;
+    }
+
+    public List<Object> getExecutionPath() {
         return executionPath;
     }
 
