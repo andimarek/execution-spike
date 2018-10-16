@@ -6,7 +6,6 @@ import graphql.execution.ExecutionInfo;
 import graphql.execution.ExecutionPath;
 import graphql.execution.FieldCollector;
 import graphql.execution.FieldCollectorParameters;
-import graphql.execution.NonNullableFieldWasNullException;
 import graphql.execution.ValuesResolver;
 import graphql.language.Document;
 import graphql.language.Field;
@@ -16,7 +15,7 @@ import graphql.language.OperationDefinition;
 import graphql.language.VariableDefinition;
 import graphql.schema.GraphQLObjectType;
 import graphql.schema.GraphQLSchema;
-import reactor.core.publisher.Mono;
+import reactor.core.publisher.Flux;
 
 import java.util.List;
 import java.util.Map;
@@ -24,14 +23,14 @@ import java.util.Map;
 import static graphql.execution.ExecutionContextBuilder.newExecutionContextBuilder;
 import static graphql.execution.ExecutionInfo.newExecutionInfo;
 
-public class ReactorExecution {
+public class ReactorStreamingExecution {
 
     private final FieldCollector fieldCollector = new FieldCollector();
 
-    public Mono<ExecutionResult> execute(Document document,
-                                         GraphQLSchema graphQLSchema,
-                                         ExecutionId executionId,
-                                         ExecutionInput executionInput) {
+    public Flux<ResultLeaf> execute(Document document,
+                                    GraphQLSchema graphQLSchema,
+                                    ExecutionId executionId,
+                                    ExecutionInput executionInput) {
         NodeUtil.GetOperationResult getOperationResult = NodeUtil.getOperation(document, executionInput.getOperationName());
         Map<String, FragmentDefinition> fragmentsByName = getOperationResult.fragmentsByName;
         OperationDefinition operationDefinition = getOperationResult.operationDefinition;
@@ -41,14 +40,7 @@ public class ReactorExecution {
         List<VariableDefinition> variableDefinitions = operationDefinition.getVariableDefinitions();
 
         Map<String, Object> coercedVariables;
-        try {
-            coercedVariables = valuesResolver.coerceArgumentValues(graphQLSchema, variableDefinitions, inputVariables);
-        } catch (RuntimeException rte) {
-            if (rte instanceof GraphQLError) {
-                return Mono.just(new ExecutionResultImpl((GraphQLError) rte));
-            }
-            return Mono.error(rte);
-        }
+        coercedVariables = valuesResolver.coerceArgumentValues(graphQLSchema, variableDefinitions, inputVariables);
 
         ExecutionContext executionContext = newExecutionContextBuilder()
                 .executionId(executionId)
@@ -66,7 +58,7 @@ public class ReactorExecution {
     }
 
 
-    private Mono<ExecutionResult> executeOperation(ExecutionContext executionContext, Object root, OperationDefinition operationDefinition) {
+    private Flux<ResultLeaf> executeOperation(ExecutionContext executionContext, Object root, OperationDefinition operationDefinition) {
 
         GraphQLObjectType operationRootType;
 
@@ -86,17 +78,8 @@ public class ReactorExecution {
         fieldSubSelection.setFields(fields);
         fieldSubSelection.setExecutionInfo(executionInfo);
 
-        ReactorExecutionStrategy reactorExecutionStrategy = new ReactorExecutionStrategy(executionContext);
-        return reactorExecutionStrategy.execute(fieldSubSelection).map(stringObjectMap -> {
-            //TODO: handle errors
-            return ExecutionResultImpl.newExecutionResult()
-                    .data(stringObjectMap)
-                    .build();
-        })
-                .cast(ExecutionResult.class)
-                .onErrorResume(NonNullableFieldWasNullException.class, e -> Mono.just(ExecutionResultImpl.newExecutionResult()
-                        .data(null)
-                        .build()));
+        ReactorStreamingExecutionStrategy reactorExecutionStrategy = new ReactorStreamingExecutionStrategy(executionContext);
+        return reactorExecutionStrategy.execute(fieldSubSelection);
     }
 
 
