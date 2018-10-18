@@ -1,6 +1,6 @@
 package graphql;
 
-import graphql.execution.ExecutionInfo;
+import graphql.execution.ExecutionStepInfo;
 import graphql.language.Field;
 
 import java.util.ArrayList;
@@ -33,7 +33,7 @@ public class FetchedValueAnalysis {
     // only for object
     private FieldSubSelection fieldSubSelection;
 
-    private ExecutionInfo executionInfo;
+    private ExecutionStepInfo executionInfo;
     private FetchedValue fetchedValue;
 
 
@@ -47,7 +47,7 @@ public class FetchedValueAnalysis {
         setField(builder.field);
         setName(builder.name);
         setFieldSubSelection(builder.fieldSubSelection);
-        setExecutionInfo(builder.executionInfo);
+        setExecutionStepInfo(builder.executionInfo);
     }
 
 
@@ -62,7 +62,7 @@ public class FetchedValueAnalysis {
         builder.field = copy.getField();
         builder.name = copy.getName();
         builder.fieldSubSelection = copy.fieldSubSelection;
-        builder.executionInfo = copy.getExecutionInfo();
+        builder.executionInfo = copy.getExecutionStepInfo();
         return builder;
     }
 
@@ -139,11 +139,11 @@ public class FetchedValueAnalysis {
         return new Builder().valueType(valueType);
     }
 
-    public ExecutionInfo getExecutionInfo() {
+    public ExecutionStepInfo getExecutionStepInfo() {
         return executionInfo;
     }
 
-    public void setExecutionInfo(ExecutionInfo executionInfo) {
+    public void setExecutionStepInfo(ExecutionStepInfo executionInfo) {
         this.executionInfo = executionInfo;
     }
 
@@ -181,7 +181,7 @@ public class FetchedValueAnalysis {
         private boolean nullValue;
         private Field field;
         private String name;
-        private ExecutionInfo executionInfo;
+        private ExecutionStepInfo executionInfo;
 
         private Builder() {
         }
@@ -239,7 +239,7 @@ public class FetchedValueAnalysis {
             return this;
         }
 
-        public Builder executionInfo(ExecutionInfo executionInfo) {
+        public Builder executionInfo(ExecutionStepInfo executionInfo) {
             this.executionInfo = executionInfo;
             return this;
         }

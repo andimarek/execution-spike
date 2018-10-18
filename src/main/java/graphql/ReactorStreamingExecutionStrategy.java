@@ -1,7 +1,7 @@
 package graphql;
 
 import graphql.execution.ExecutionContext;
-import graphql.execution.ExecutionInfo;
+import graphql.execution.ExecutionStepInfo;
 import graphql.language.Field;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.FluxSink;
@@ -14,7 +14,7 @@ import static graphql.ValueFetcher.NULL_VALUE;
 
 public class ReactorStreamingExecutionStrategy {
 
-    ExecutionInfoFactory executionInfoFactory;
+    ExecutionStepInfoFactory executionInfoFactory;
     ValueFetcher valueFetcher;
 
     private final ExecutionContext executionContext;
@@ -25,7 +25,7 @@ public class ReactorStreamingExecutionStrategy {
         this.executionContext = executionContext;
         this.fetchedValueAnalyzer = new FetchedValueAnalyzer(executionContext);
         this.valueFetcher = new ValueFetcher(executionContext);
-        this.executionInfoFactory = new ExecutionInfoFactory(executionContext);
+        this.executionInfoFactory = new ExecutionStepInfoFactory(executionContext);
     }
 
     public Flux<ResultLeaf> execute(FieldSubSelection fieldSubSelection) {
@@ -45,7 +45,7 @@ public class ReactorStreamingExecutionStrategy {
 
     private void convertFetchedValue(FetchedValueAnalysis fetchedValueAnalysis, FluxSink<ResultLeaf> sink) {
         if (fetchedValueAnalysis.isNullValue()) {
-            sink.next(new ResultLeaf(fetchedValueAnalysis.getExecutionInfo().getPath(), NULL_VALUE));
+            sink.next(new ResultLeaf(fetchedValueAnalysis.getExecutionStepInfo().getPath(), NULL_VALUE));
             return;
         }
         if (fetchedValueAnalysis.getValueType() == FetchedValueAnalysis.FetchedValueType.OBJECT) {
@@ -59,7 +59,7 @@ public class ReactorStreamingExecutionStrategy {
                     .forEach(fetchedValueAnalysis1 -> convertFetchedValue(fetchedValueAnalysis1, sink));
             return;
         }
-        ResultLeaf resultLeaf = new ResultLeaf(fetchedValueAnalysis.getExecutionInfo().getPath(), fetchedValueAnalysis.getCompletedValue());
+        ResultLeaf resultLeaf = new ResultLeaf(fetchedValueAnalysis.getExecutionStepInfo().getPath(), fetchedValueAnalysis.getCompletedValue());
         sink.next(resultLeaf);
     }
 
@@ -69,16 +69,16 @@ public class ReactorStreamingExecutionStrategy {
                 .map(entry -> {
                     List<Field> sameFields = entry.getValue();
                     String name = entry.getKey();
-                    ExecutionInfo newExecutionInfo = executionInfoFactory.newExecutionInfoForSubField(sameFields, fieldSubSelection.getExecutionInfo());
+                    ExecutionStepInfo newExecutionStepInfo = executionInfoFactory.newExecutionStepInfoForSubField(sameFields, fieldSubSelection.getExecutionStepInfo());
                     return valueFetcher
-                            .fetchValue(fieldSubSelection.getSource(), sameFields, newExecutionInfo)
-                            .map(fetchValue -> analyseValue(fetchValue, name, sameFields, newExecutionInfo));
+                            .fetchValue(fieldSubSelection.getSource(), sameFields, newExecutionStepInfo)
+                            .map(fetchValue -> analyseValue(fetchValue, name, sameFields, newExecutionStepInfo));
                 })
                 .collect(Collectors.toList());
         return Flux.merge(fetchedValues);
     }
 
-    private FetchedValueAnalysis analyseValue(FetchedValue fetchedValue, String name, List<Field> field, ExecutionInfo executionInfo) {
+    private FetchedValueAnalysis analyseValue(FetchedValue fetchedValue, String name, List<Field> field, ExecutionStepInfo executionInfo) {
         FetchedValueAnalysis fetchedValueAnalysis = fetchedValueAnalyzer.analyzeFetchedValue(fetchedValue.getFetchedValue(), name, field, executionInfo);
         fetchedValueAnalysis.setFetchedValue(fetchedValue);
         return fetchedValueAnalysis;

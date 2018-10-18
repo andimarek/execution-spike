@@ -1,8 +1,8 @@
 package graphql;
 
 import graphql.execution.ExecutionContext;
-import graphql.execution.ExecutionInfo;
 import graphql.execution.ExecutionPath;
+import graphql.execution.ExecutionStepInfo;
 import graphql.execution.ValuesResolver;
 import graphql.introspection.Introspection;
 import graphql.language.Argument;
@@ -16,19 +16,19 @@ import graphql.schema.visibility.GraphqlFieldVisibility;
 import java.util.List;
 import java.util.Map;
 
-public class ExecutionInfoFactory {
+public class ExecutionStepInfoFactory {
 
     private final ExecutionContext executionContext;
 
     ValuesResolver valuesResolver = new ValuesResolver();
 
-    public ExecutionInfoFactory(ExecutionContext executionContext) {
+    public ExecutionStepInfoFactory(ExecutionContext executionContext) {
         this.executionContext = executionContext;
     }
 
-    public ExecutionInfo newExecutionInfoForSubField(List<Field> sameFields, ExecutionInfo parentInfo) {
+    public ExecutionStepInfo newExecutionStepInfoForSubField(List<Field> sameFields, ExecutionStepInfo parentInfo) {
         Field field = sameFields.get(0);
-        GraphQLObjectType parentType = parentInfo.castType(GraphQLObjectType.class);
+        GraphQLObjectType parentType = (GraphQLObjectType) parentInfo.getUnwrappedNonNullType();
         GraphQLFieldDefinition fieldDefinition = Introspection.getFieldDef(executionContext.getGraphQLSchema(), parentType, field.getName());
         GraphQLOutputType fieldType = fieldDefinition.getType();
         List<Argument> fieldArgs = field.getArguments();
@@ -37,7 +37,7 @@ public class ExecutionInfoFactory {
 
         ExecutionPath newPath = parentInfo.getPath().segment(mkNameForPath(sameFields));
 
-        return ExecutionInfo.newExecutionInfo()
+        return ExecutionStepInfo.newExecutionStepInfo()
                 .type(fieldType)
                 .fieldDefinition(fieldDefinition)
                 .field(field)
@@ -47,12 +47,12 @@ public class ExecutionInfoFactory {
                 .build();
     }
 
-    public ExecutionInfo newExecutionInfoForListElement(ExecutionInfo executionInfo, int index) {
+    public ExecutionStepInfo newExecutionStepInfoForListElement(ExecutionStepInfo executionInfo, int index) {
         Field field = executionInfo.getField();
-        GraphQLList fieldType = executionInfo.castType(GraphQLList.class);
+        GraphQLList fieldType = (GraphQLList) executionInfo.getUnwrappedNonNullType();
         GraphQLFieldDefinition fieldDef = executionInfo.getFieldDefinition();
         ExecutionPath indexedPath = executionInfo.getPath().segment(index);
-        return ExecutionInfo.newExecutionInfo()
+        return ExecutionStepInfo.newExecutionStepInfo()
                 .parentInfo(executionInfo)
                 .type(fieldType.getWrappedType())
                 .path(indexedPath)

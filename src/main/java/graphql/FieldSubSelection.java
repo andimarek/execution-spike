@@ -1,6 +1,6 @@
 package graphql;
 
-import graphql.execution.ExecutionInfo;
+import graphql.execution.ExecutionStepInfo;
 import graphql.language.Field;
 
 import java.util.LinkedHashMap;
@@ -17,7 +17,7 @@ public class FieldSubSelection {
 
     private Object source;
     // the type of this must be objectType
-    private ExecutionInfo executionInfo;
+    private ExecutionStepInfo executionInfo;
     private Map<String, List<Field>> fields = new LinkedHashMap<>();
 
 
@@ -37,11 +37,11 @@ public class FieldSubSelection {
         this.fields = fields;
     }
 
-    public ExecutionInfo getExecutionInfo() {
+    public ExecutionStepInfo getExecutionStepInfo() {
         return executionInfo;
     }
 
-    public void setExecutionInfo(ExecutionInfo executionInfo) {
+    public void setExecutionStepInfo(ExecutionStepInfo executionInfo) {
         this.executionInfo = executionInfo;
     }
 }

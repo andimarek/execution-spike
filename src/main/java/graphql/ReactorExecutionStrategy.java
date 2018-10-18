@@ -1,7 +1,7 @@
 package graphql;
 
 import graphql.execution.ExecutionContext;
-import graphql.execution.ExecutionInfo;
+import graphql.execution.ExecutionStepInfo;
 import graphql.execution.NonNullableFieldWasNullException;
 import graphql.language.Field;
 import graphql.schema.GraphQLList;
@@ -19,7 +19,7 @@ import static graphql.ValueFetcher.NULL_VALUE;
 
 public class ReactorExecutionStrategy {
 
-    ExecutionInfoFactory executionInfoFactory;
+    ExecutionStepInfoFactory executionInfoFactory;
     ValueFetcher valueFetcher;
 
     private final ExecutionContext executionContext;
@@ -30,7 +30,7 @@ public class ReactorExecutionStrategy {
         this.executionContext = executionContext;
         this.fetchedValueAnalyzer = new FetchedValueAnalyzer(executionContext);
         this.valueFetcher = new ValueFetcher(executionContext);
-        this.executionInfoFactory = new ExecutionInfoFactory(executionContext);
+        this.executionInfoFactory = new ExecutionStepInfoFactory(executionContext);
     }
 
     public Mono<Map<String, Object>> execute(FieldSubSelection fieldSubSelection) {
@@ -49,8 +49,8 @@ public class ReactorExecutionStrategy {
     }
 
     private Mono<Object> convertFetchedValue(FetchedValueAnalysis fetchedValueAnalysis) {
-        if (fetchedValueAnalysis.isNullValue() && fetchedValueAnalysis.getExecutionInfo().isNonNullType()) {
-            return Mono.error(new NonNullableFieldWasNullException(fetchedValueAnalysis.getExecutionInfo(), fetchedValueAnalysis.getExecutionInfo().getPath()));
+        if (fetchedValueAnalysis.isNullValue() && fetchedValueAnalysis.getExecutionStepInfo().isNonNullType()) {
+            return Mono.error(new NonNullableFieldWasNullException(fetchedValueAnalysis.getExecutionStepInfo(), fetchedValueAnalysis.getExecutionStepInfo().getPath()));
         }
         if (fetchedValueAnalysis.isNullValue()) {
             return Mono.just(NULL_VALUE);
@@ -71,7 +71,7 @@ public class ReactorExecutionStrategy {
     }
 
     private Mono<Object> convertList(FetchedValueAnalysis fetchedValueAnalysis, List<Mono<Object>> listElements) {
-        GraphQLType listElementType = fetchedValueAnalysis.getExecutionInfo().castType(GraphQLList.class).getWrappedType();
+        GraphQLType listElementType = ((GraphQLList) fetchedValueAnalysis.getExecutionStepInfo().getUnwrappedNonNullType()).getWrappedType();
         boolean listElementNonNull = listElementType instanceof GraphQLNonNull;
 
         List<Mono<Object>> monosWithErrorHandler = listElements.stream().map(elementMono -> elementMono
@@ -95,7 +95,7 @@ public class ReactorExecutionStrategy {
     }
 
     private Mono<?> handNonNullableExceptionForWholeList(FetchedValueAnalysis fetchedValueAnalysis, NonNullableFieldWasNullException e) {
-        if (fetchedValueAnalysis.getExecutionInfo().isNonNullType()) {
+        if (fetchedValueAnalysis.getExecutionStepInfo().isNonNullType()) {
             return Mono.error(new NonNullableFieldWasNullException(e));
         } else {
             return Mono.just(NULL_VALUE);
@@ -116,10 +116,10 @@ public class ReactorExecutionStrategy {
                 .map(entry -> {
                     List<Field> sameFields = entry.getValue();
                     String name = entry.getKey();
-                    ExecutionInfo newExecutionInfo = executionInfoFactory.newExecutionInfoForSubField(sameFields, fieldSubSelection.getExecutionInfo());
+                    ExecutionStepInfo newExecutionStepInfo = executionInfoFactory.newExecutionStepInfoForSubField(sameFields, fieldSubSelection.getExecutionStepInfo());
                     return valueFetcher
-                            .fetchValue(fieldSubSelection.getSource(), sameFields, newExecutionInfo)
-                            .map(fetchValue -> analyseValue(fetchValue, name, sameFields, newExecutionInfo));
+                            .fetchValue(fieldSubSelection.getSource(), sameFields, newExecutionStepInfo)
+                            .map(fetchValue -> analyseValue(fetchValue, name, sameFields, newExecutionStepInfo));
                 })
                 .collect(Collectors.toList());
 
@@ -127,7 +127,7 @@ public class ReactorExecutionStrategy {
     }
 
 
-    private FetchedValueAnalysis analyseValue(FetchedValue fetchedValue, String name, List<Field> field, ExecutionInfo executionInfo) {
+    private FetchedValueAnalysis analyseValue(FetchedValue fetchedValue, String name, List<Field> field, ExecutionStepInfo executionInfo) {
         FetchedValueAnalysis fetchedValueAnalysis = fetchedValueAnalyzer.analyzeFetchedValue(fetchedValue.getFetchedValue(), name, field, executionInfo);
         fetchedValueAnalysis.setFetchedValue(fetchedValue);
         return fetchedValueAnalysis;

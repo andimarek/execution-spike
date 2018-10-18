@@ -2,8 +2,8 @@ package graphql;
 
 import graphql.execution.ExecutionContext;
 import graphql.execution.ExecutionId;
-import graphql.execution.ExecutionInfo;
 import graphql.execution.ExecutionPath;
+import graphql.execution.ExecutionStepInfo;
 import graphql.execution.FieldCollector;
 import graphql.execution.FieldCollectorParameters;
 import graphql.execution.ValuesResolver;
@@ -22,7 +22,7 @@ import java.util.List;
 import java.util.Map;
 
 import static graphql.execution.ExecutionContextBuilder.newExecutionContextBuilder;
-import static graphql.execution.ExecutionInfo.newExecutionInfo;
+import static graphql.execution.ExecutionStepInfo.newExecutionStepInfo;
 
 public class ReactorStreamingExecution {
 
@@ -77,12 +77,12 @@ public class ReactorStreamingExecution {
                 .variables(executionContext.getVariables())
                 .build();
         Map<String, List<Field>> fields = fieldCollector.collectFields(collectorParameters, operationDefinition.getSelectionSet());
-        ExecutionInfo executionInfo = newExecutionInfo().type(operationRootType).path(ExecutionPath.rootPath()).build();
+        ExecutionStepInfo executionInfo = newExecutionStepInfo().type(operationRootType).path(ExecutionPath.rootPath()).build();
 
         FieldSubSelection fieldSubSelection = new FieldSubSelection();
         fieldSubSelection.setSource(root);
         fieldSubSelection.setFields(fields);
-        fieldSubSelection.setExecutionInfo(executionInfo);
+        fieldSubSelection.setExecutionStepInfo(executionInfo);
 
         ReactorStreamingExecutionStrategy reactorExecutionStrategy = new ReactorStreamingExecutionStrategy(executionContext);
         return reactorExecutionStrategy.execute(fieldSubSelection);

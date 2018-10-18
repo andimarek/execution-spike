@@ -4,8 +4,8 @@ package graphql;
 import graphql.execution.DataFetcherResult;
 import graphql.execution.ExecutionContext;
 import graphql.execution.ExecutionId;
-import graphql.execution.ExecutionInfo;
 import graphql.execution.ExecutionPath;
+import graphql.execution.ExecutionStepInfo;
 import graphql.execution.ValuesResolver;
 import graphql.language.Field;
 import graphql.schema.DataFetcher;
@@ -44,7 +44,7 @@ public class ValueFetcher {
     }
 
 
-    public Mono<FetchedValue> fetchValue(Object source, List<Field> sameFields, ExecutionInfo executionInfo) {
+    public Mono<FetchedValue> fetchValue(Object source, List<Field> sameFields, ExecutionStepInfo executionInfo) {
         Field field = sameFields.get(0);
         GraphQLFieldDefinition fieldDef = executionInfo.getFieldDefinition();
 
@@ -60,7 +60,7 @@ public class ValueFetcher {
                 .fieldDefinition(fieldDef)
                 .fields(sameFields)
                 .fieldType(fieldType)
-                .executionInfo(executionInfo)
+                .executionStepInfo(executionInfo)
                 .parentType(executionInfo.getParent().getType())
                 .selectionSet(fieldCollector)
                 .build();
