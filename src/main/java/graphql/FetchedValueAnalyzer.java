@@ -77,7 +77,7 @@ public class FetchedValueAnalyzer {
             if (toAnalyze == null) {
                 return FetchedValueAnalysis.newFetchedValueAnalysis(OBJECT)
                         .name(name)
-                        .executionInfo(executionInfo)
+                        .executionStepInfo(executionInfo)
                         .nullValue()
                         .build();
             }
@@ -127,9 +127,7 @@ public class FetchedValueAnalyzer {
         List<FetchedValueAnalysis> children = new ArrayList<>();
         int index = 0;
         for (Object item : values) {
-
             ExecutionStepInfo executionInfoForListElement = executionInfoFactory.newExecutionStepInfoForListElement(executionInfo, index);
-
             children.add(analyzeFetchedValue(item, name, Arrays.asList(executionInfo.getField()), executionInfoForListElement));
             index++;
         }

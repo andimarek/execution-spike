@@ -33,7 +33,7 @@ public class FetchedValueAnalysis {
     // only for object
     private FieldSubSelection fieldSubSelection;
 
-    private ExecutionStepInfo executionInfo;
+    private ExecutionStepInfo executionStepInfo;
     private FetchedValue fetchedValue;
 
 
@@ -140,11 +140,11 @@ public class FetchedValueAnalysis {
     }
 
     public ExecutionStepInfo getExecutionStepInfo() {
-        return executionInfo;
+        return executionStepInfo;
     }
 
     public void setExecutionStepInfo(ExecutionStepInfo executionInfo) {
-        this.executionInfo = executionInfo;
+        this.executionStepInfo = executionInfo;
     }
 
     public FieldSubSelection getFieldSubSelection() {
@@ -166,7 +166,7 @@ public class FetchedValueAnalysis {
                 ", field=" + field +
                 ", name='" + name + '\'' +
                 ", fieldSubSelection=" + fieldSubSelection +
-                ", executionInfo=" + executionInfo +
+                ", executionStepInfo=" + executionStepInfo +
                 ", fetchedValue=" + fetchedValue +
                 '}';
     }
@@ -239,7 +239,7 @@ public class FetchedValueAnalysis {
             return this;
         }
 
-        public Builder executionInfo(ExecutionStepInfo executionInfo) {
+        public Builder executionStepInfo(ExecutionStepInfo executionInfo) {
             this.executionInfo = executionInfo;
             return this;
         }

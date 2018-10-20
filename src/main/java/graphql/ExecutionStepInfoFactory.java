@@ -49,8 +49,8 @@ public class ExecutionStepInfoFactory {
 
     public ExecutionStepInfo newExecutionStepInfoForListElement(ExecutionStepInfo executionInfo, int index) {
         Field field = executionInfo.getField();
-        GraphQLList fieldType = (GraphQLList) executionInfo.getUnwrappedNonNullType();
         GraphQLFieldDefinition fieldDef = executionInfo.getFieldDefinition();
+        GraphQLList fieldType = (GraphQLList) executionInfo.getUnwrappedNonNullType();
         ExecutionPath indexedPath = executionInfo.getPath().segment(index);
         return ExecutionStepInfo.newExecutionStepInfo()
                 .parentInfo(executionInfo)

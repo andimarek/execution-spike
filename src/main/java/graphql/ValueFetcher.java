@@ -17,6 +17,7 @@ import graphql.schema.GraphQLOutputType;
 import graphql.schema.visibility.GraphqlFieldVisibility;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoSink;
 
@@ -43,6 +44,43 @@ public class ValueFetcher {
         this.executionContext = executionContext;
     }
 
+
+    public Mono<List<FetchedValue>> fetchBatchedValues(List<Object> sources, List<Field> sameFields, List<ExecutionStepInfo> executionInfos) {
+        ExecutionStepInfo executionStepInfo = executionInfos.get(0);
+        if (isDataFetcherBatched(sameFields, executionStepInfo)) {
+            //TODO: the stepInfo is not correct for all values: how to give the DF all executionInfos?
+            return fetchValue(sources, sameFields, executionStepInfo).map(fetchedValue -> extractValues(fetchedValue, sources.size()));
+        } else {
+            List<Mono<FetchedValue>> fetchedValues = new ArrayList<>();
+            for (int i = 0; i < sources.size(); i++) {
+                fetchedValues.add(fetchValue(sources.get(i), sameFields, executionInfos.get(i)));
+            }
+            return Flux.merge(fetchedValues).collectList();
+        }
+    }
+
+    private List<FetchedValue> extractValues(FetchedValue fetchedValueContainingList, int expectedSize) {
+        List<Object> list = (List<Object>) fetchedValueContainingList.getFetchedValue();
+        Assert.assertTrue(list.size() == expectedSize, "Unexpected result size");
+        List<FetchedValue> result = new ArrayList<>();
+        for (int i = 0; i < list.size(); i++) {
+            List<GraphQLError> errors;
+            if (i == 0) {
+                errors = fetchedValueContainingList.getErrors();
+            } else {
+                errors = Collections.emptyList();
+            }
+            FetchedValue fetchedValue = new FetchedValue(list.get(0), fetchedValueContainingList.getRawFetchedValue(), errors);
+            result.add(fetchedValue);
+        }
+        return result;
+    }
+
+    private boolean isDataFetcherBatched(List<Field> sameFields, ExecutionStepInfo executionStepInfo) {
+        Field field = sameFields.get(0);
+        GraphQLFieldDefinition fieldDef = executionStepInfo.getFieldDefinition();
+        return fieldDef.getDataFetcher() instanceof BatchedDataFetcher;
+    }
 
     public Mono<FetchedValue> fetchValue(Object source, List<Field> sameFields, ExecutionStepInfo executionInfo) {
         Field field = sameFields.get(0);

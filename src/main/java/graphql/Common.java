@@ -5,6 +5,8 @@ import graphql.language.OperationDefinition;
 import graphql.schema.GraphQLObjectType;
 import graphql.schema.GraphQLSchema;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -97,5 +99,31 @@ public class Common {
         } else {
             return new ConcurrentHashMap<>();
         }
+    }
+
+    public static <T> List<List<T>> transposeMatrix(List<? extends List<T>> matrix) {
+        int rowCount = matrix.size();
+        int colCount = matrix.get(0).size();
+        List<List<T>> result = new ArrayList<>();
+        for (int i = 0; i < rowCount; i++) {
+            for (int j = 0; j < colCount; j++) {
+                T val = matrix.get(i).get(j);
+                if (result.size() <= j) {
+                    result.add(j, new ArrayList());
+                }
+                result.get(j).add(i, val);
+            }
+        }
+        return result;
+    }
+
+    public static void main(String[] args) {
+
+        List<String> row1 = Arrays.asList("a11", "a12", "a13", "a14", "a15");
+        List<String> row2 = Arrays.asList("a21", "a22", "a23", "a24", "a25");
+
+        List<List<String>> matrix = Arrays.asList(row1, row2);
+        System.out.println(transposeMatrix(matrix));
+
     }
 }
