@@ -86,11 +86,11 @@ public class ReactorExecution {
         fieldSubSelection.setFields(fields);
         fieldSubSelection.setExecutionStepInfo(executionInfo);
 
-        ReactorExecutionStrategy reactorExecutionStrategy = new ReactorExecutionStrategy(executionContext);
-        return reactorExecutionStrategy.execute(fieldSubSelection).map(stringObjectMap -> {
-            //TODO: handle errors
+        ReactorExecutionStrategy2 reactorExecutionStrategy = new ReactorExecutionStrategy2(executionContext);
+        return reactorExecutionStrategy.execute(fieldSubSelection).map(rootExecutionResultNode -> {
+            Object data = ExecutionResultNode.toData(rootExecutionResultNode);
             return ExecutionResultImpl.newExecutionResult()
-                    .data(stringObjectMap)
+                    .data(data)
                     .build();
         })
                 .cast(ExecutionResult.class)

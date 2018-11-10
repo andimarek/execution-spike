@@ -49,7 +49,7 @@ public class ValueFetcher {
         ExecutionStepInfo executionStepInfo = executionInfos.get(0);
         if (isDataFetcherBatched(sameFields, executionStepInfo)) {
             //TODO: the stepInfo is not correct for all values: how to give the DF all executionInfos?
-            return fetchValue(sources, sameFields, executionStepInfo).map(fetchedValue -> extractValues(fetchedValue, sources.size()));
+            return fetchValue(sources, sameFields, executionStepInfo).map(fetchedValue -> extractBatchedValues(fetchedValue, sources.size()));
         } else {
             List<Mono<FetchedValue>> fetchedValues = new ArrayList<>();
             for (int i = 0; i < sources.size(); i++) {
@@ -59,7 +59,7 @@ public class ValueFetcher {
         }
     }
 
-    private List<FetchedValue> extractValues(FetchedValue fetchedValueContainingList, int expectedSize) {
+    private List<FetchedValue> extractBatchedValues(FetchedValue fetchedValueContainingList, int expectedSize) {
         List<Object> list = (List<Object>) fetchedValueContainingList.getFetchedValue();
         Assert.assertTrue(list.size() == expectedSize, "Unexpected result size");
         List<FetchedValue> result = new ArrayList<>();
@@ -77,7 +77,6 @@ public class ValueFetcher {
     }
 
     private boolean isDataFetcherBatched(List<Field> sameFields, ExecutionStepInfo executionStepInfo) {
-        Field field = sameFields.get(0);
         GraphQLFieldDefinition fieldDef = executionStepInfo.getFieldDefinition();
         return fieldDef.getDataFetcher() instanceof BatchedDataFetcher;
     }

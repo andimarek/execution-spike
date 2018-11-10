@@ -1,7 +1,6 @@
 package graphql;
 
 import graphql.execution.ExecutionStepInfo;
-import graphql.language.Field;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -20,18 +19,20 @@ public class FetchedValueAnalysis {
     private FetchedValueType valueType;
     private List<GraphQLError> errors;
 
+    // not applicable for LIST
     private Object completedValue;
+
+    private boolean nullValue;
 
     // only available for LIST
     private List<FetchedValueAnalysis> children;
 
-    private boolean nullValue;
-
-    private Field field;
-    private String name;
-
     // only for object
     private FieldSubSelection fieldSubSelection;
+
+
+    // for children of list name is the same as for the list itself
+    private String name;
 
     private ExecutionStepInfo executionStepInfo;
     private FetchedValue fetchedValue;
@@ -44,7 +45,6 @@ public class FetchedValueAnalysis {
         setFetchedValue(builder.fetchedValue);
         setChildren(builder.children);
         setNullValue(builder.nullValue);
-        setField(builder.field);
         setName(builder.name);
         setFieldSubSelection(builder.fieldSubSelection);
         setExecutionStepInfo(builder.executionInfo);
@@ -59,7 +59,6 @@ public class FetchedValueAnalysis {
         builder.fetchedValue = copy.getFetchedValue();
         builder.children = copy.getChildren();
         builder.nullValue = copy.isNullValue();
-        builder.field = copy.getField();
         builder.name = copy.getName();
         builder.fieldSubSelection = copy.fieldSubSelection;
         builder.executionInfo = copy.getExecutionStepInfo();
@@ -115,13 +114,6 @@ public class FetchedValueAnalysis {
         this.fetchedValue = fetchedValue;
     }
 
-    public Field getField() {
-        return field;
-    }
-
-    public void setField(Field field) {
-        this.field = field;
-    }
 
     public String getName() {
         return name;
@@ -163,7 +155,6 @@ public class FetchedValueAnalysis {
                 ", completedValue=" + completedValue +
                 ", children=" + children +
                 ", nullValue=" + nullValue +
-                ", field=" + field +
                 ", name='" + name + '\'' +
                 ", fieldSubSelection=" + fieldSubSelection +
                 ", executionStepInfo=" + executionStepInfo +
@@ -179,7 +170,6 @@ public class FetchedValueAnalysis {
         private List<FetchedValueAnalysis> children;
         private FieldSubSelection fieldSubSelection;
         private boolean nullValue;
-        private Field field;
         private String name;
         private ExecutionStepInfo executionInfo;
 
@@ -208,11 +198,6 @@ public class FetchedValueAnalysis {
             return this;
         }
 
-        public Builder fetchedValue(FetchedValue val) {
-            fetchedValue = val;
-            return this;
-        }
-
         public Builder children(List<FetchedValueAnalysis> val) {
             children = val;
             return this;
@@ -221,11 +206,6 @@ public class FetchedValueAnalysis {
 
         public Builder nullValue() {
             nullValue = true;
-            return this;
-        }
-
-        public Builder field(Field val) {
-            field = val;
             return this;
         }
 
