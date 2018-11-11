@@ -14,6 +14,7 @@ import graphql.language.FragmentDefinition;
 import graphql.language.NodeUtil;
 import graphql.language.OperationDefinition;
 import graphql.language.VariableDefinition;
+import graphql.result.ExecutionResultNode;
 import graphql.schema.GraphQLObjectType;
 import graphql.schema.GraphQLSchema;
 import reactor.core.publisher.Mono;
@@ -86,7 +87,7 @@ public class ReactorExecution {
         fieldSubSelection.setFields(fields);
         fieldSubSelection.setExecutionStepInfo(executionInfo);
 
-        ReactorExecutionStrategy2 reactorExecutionStrategy = new ReactorExecutionStrategy2(executionContext);
+        ReactorExecutionStrategyBatching reactorExecutionStrategy = new ReactorExecutionStrategyBatching(executionContext);
         return reactorExecutionStrategy.execute(fieldSubSelection).map(rootExecutionResultNode -> {
             Object data = ExecutionResultNode.toData(rootExecutionResultNode);
             return ExecutionResultImpl.newExecutionResult()

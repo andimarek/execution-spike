@@ -5,6 +5,8 @@ import graphql.execution.ExecutionStepInfo;
 import graphql.execution.NonNullableFieldWasNullException;
 import graphql.language.Field;
 import graphql.result.ExecutionResultNode;
+import graphql.result.ExecutionResultNodeZipper;
+import graphql.result.ResultNodesUtil;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -15,7 +17,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-public class ReactorExecutionStrategy2 {
+public class ReactorExecutionStrategyBatching {
 
     ExecutionStepInfoFactory executionInfoFactory;
     ValueFetcher valueFetcher;
@@ -24,7 +26,7 @@ public class ReactorExecutionStrategy2 {
     private FetchedValueAnalyzer fetchedValueAnalyzer;
 
 
-    public ReactorExecutionStrategy2(ExecutionContext executionContext) {
+    public ReactorExecutionStrategyBatching(ExecutionContext executionContext) {
         this.executionContext = executionContext;
         this.fetchedValueAnalyzer = new FetchedValueAnalyzer(executionContext);
         this.valueFetcher = new ValueFetcher(executionContext);
@@ -36,7 +38,7 @@ public class ReactorExecutionStrategy2 {
     }
 
     public Mono<Map<String, ExecutionResultNode>> executeSubSelection(FieldSubSelection fieldSubSelection) {
-        return fetchAndAnalyze(fieldSubSelection)
+        Mono<Map<String, ExecutionResultNode>> nextLevelNodes = fetchAndAnalyze(fieldSubSelection)
                 .flatMap(fetchedValueAnalysis -> Mono.zip(Mono.just(fetchedValueAnalysis), createResultNode(fetchedValueAnalysis)))
                 .reduce(new LinkedHashMap<>(), (acc, tuple) -> {
                     FetchedValueAnalysis fetchedValueAnalysis = tuple.getT1();
@@ -44,7 +46,19 @@ public class ReactorExecutionStrategy2 {
                     acc.put(fetchedValueAnalysis.getName(), executionResultNode);
                     return acc;
                 });
+        nextLevelNodes.map(stringExecutionResultNodeMap -> {
+            // list of root nodes
+            Collection<ExecutionResultNode> rootNodes = stringExecutionResultNodeMap.values();
+            List<ExecutionResultNodeZipper> unresolvedNodes = ResultNodesUtil.getUnresolvedNodes(rootNodes);
+            System.out.println("unresolved: " + unresolvedNodes);
+//            unresolvedNodes.stream().map(notResolvedObjectResultNode -> {
+//                Mono<Map<String, ExecutionResultNode>> subSelection = executeSubSelection(notResolvedObjectResultNode.getFetchedValueAnalysis().getFieldSubSelection());
+//            });
+            return null;
+        }).subscribe();
+        return nextLevelNodes;
     }
+
 
     private Mono<ExecutionResultNode> createResultNode(FetchedValueAnalysis fetchedValueAnalysis) {
         if (fetchedValueAnalysis.isNullValue() && fetchedValueAnalysis.getExecutionStepInfo().isNonNullType()) {
@@ -65,17 +79,7 @@ public class ReactorExecutionStrategy2 {
     }
 
     private Mono<ExecutionResultNode> createObjectResultNode(FetchedValueAnalysis fetchedValueAnalysis) {
-        boolean objectIsNonNull = fetchedValueAnalysis.getExecutionStepInfo().isNonNullType();
-        FieldSubSelection nextLevelSubSelection = fetchedValueAnalysis.getFieldSubSelection();
-        return executeSubSelection(nextLevelSubSelection)
-                .map(childrenMap -> {
-                    Optional<NonNullableFieldWasNullException> subException = getFirstNonNullableException(childrenMap.values());
-                    if (objectIsNonNull && subException.isPresent()) {
-                        NonNullableFieldWasNullException objectException = new NonNullableFieldWasNullException(subException.get());
-                        return new ExecutionResultNode.ObjectExecutionResultNode(fetchedValueAnalysis, objectException, childrenMap);
-                    }
-                    return new ExecutionResultNode.ObjectExecutionResultNode(fetchedValueAnalysis, null, childrenMap);
-                });
+        return Mono.just(new ExecutionResultNode.NotResolvedObjectResultNode(fetchedValueAnalysis));
     }
 
     private Optional<NonNullableFieldWasNullException> getFirstNonNullableException(Collection<ExecutionResultNode> collection) {

@@ -1,8 +1,10 @@
-package graphql;
+package graphql.result;
 
+import graphql.FetchedValueAnalysis;
 import graphql.execution.NonNullableFieldWasNullException;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -99,6 +101,20 @@ public abstract class ExecutionResultNode {
         }
     }
 
+    public static class NotResolvedObjectResultNode extends ObjectExecutionResultNode {
+
+        public NotResolvedObjectResultNode(FetchedValueAnalysis fetchedValueAnalysis) {
+            super(fetchedValueAnalysis, null, Collections.emptyMap());
+        }
+
+        @Override
+        public String toString() {
+            return "NotResolvedObjectResultNode{" +
+                    "fetchedValueAnalysis=" + getFetchedValueAnalysis() +
+                    '}';
+        }
+    }
+
     public static class RootExecutionResultNode extends ObjectExecutionResultNode {
 
         public RootExecutionResultNode(Map<String, ExecutionResultNode> children) {
@@ -122,6 +138,10 @@ public abstract class ExecutionResultNode {
             return root.getChildren().stream().map(ExecutionResultNode::toData).collect(Collectors.toList());
         }
 
+        if (root instanceof NotResolvedObjectResultNode) {
+            FetchedValueAnalysis fetchedValueAnalysis = root.getFetchedValueAnalysis();
+            return "Not resolved : " + fetchedValueAnalysis.getExecutionStepInfo().getPath() + " with subSelection " + fetchedValueAnalysis.getFieldSubSelection().toShortString();
+        }
         if (root instanceof ObjectExecutionResultNode) {
             if (((ObjectExecutionResultNode) root).getChildrenNonNullableException().isPresent()) {
                 return null;

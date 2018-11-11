@@ -14,12 +14,10 @@ import java.util.Map;
  */
 public class FieldSubSelection {
 
-
     private Object source;
     // the type of this must be objectType
     private ExecutionStepInfo executionInfo;
     private Map<String, List<Field>> fields = new LinkedHashMap<>();
-
 
     public Object getSource() {
         return source;
@@ -44,4 +42,20 @@ public class FieldSubSelection {
     public void setExecutionStepInfo(ExecutionStepInfo executionInfo) {
         this.executionInfo = executionInfo;
     }
+
+    @Override
+    public String toString() {
+        return "FieldSubSelection{" +
+                "source=" + source +
+                ", executionInfo=" + executionInfo +
+                ", fields=" + fields +
+                '}';
+    }
+
+    public String toShortString() {
+        return "FieldSubSelection{" +
+                "fields=" + fields.keySet() +
+                '}';
+    }
+
 }
