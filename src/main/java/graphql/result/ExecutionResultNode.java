@@ -1,5 +1,6 @@
 package graphql.result;
 
+import graphql.Assert;
 import graphql.FetchedValueAnalysis;
 import graphql.execution.NonNullableFieldWasNullException;
 
@@ -31,6 +32,8 @@ public abstract class ExecutionResultNode {
 
     public abstract List<ExecutionResultNode> getChildren();
 
+    public abstract ExecutionResultNode withChild(ExecutionResultNode child, ExecutionResultNodePosition position);
+
 
     public static class ObjectExecutionResultNode extends ExecutionResultNode {
 
@@ -48,6 +51,13 @@ public abstract class ExecutionResultNode {
             return new ArrayList<>(children.values());
         }
 
+        @Override
+        public ExecutionResultNode withChild(ExecutionResultNode child, ExecutionResultNodePosition position) {
+            LinkedHashMap<String, ExecutionResultNode> newChildren = new LinkedHashMap<>(this.children);
+            newChildren.put(position.getKey(), child);
+            return new ObjectExecutionResultNode(getFetchedValueAnalysis(), getNonNullableFieldWasNullException(), newChildren);
+        }
+
         public Map<String, ExecutionResultNode> getChildrenMap() {
             return new LinkedHashMap<>(children);
         }
@@ -57,6 +67,10 @@ public abstract class ExecutionResultNode {
                     .filter(executionResultNode -> executionResultNode.getNonNullableFieldWasNullException() != null)
                     .map(ExecutionResultNode::getNonNullableFieldWasNullException)
                     .findFirst();
+        }
+
+        public ObjectExecutionResultNode withChildren(Map<String, ExecutionResultNode> children) {
+            return new ObjectExecutionResultNode(getFetchedValueAnalysis(), getNonNullableFieldWasNullException(), children);
         }
     }
 
@@ -82,6 +96,13 @@ public abstract class ExecutionResultNode {
         public List<ExecutionResultNode> getChildren() {
             return children;
         }
+
+        @Override
+        public ExecutionResultNode withChild(ExecutionResultNode child, ExecutionResultNodePosition position) {
+            List<ExecutionResultNode> newChildren = new ArrayList<>(this.children);
+            newChildren.set(position.getPosition(), child);
+            return new ListExecutionResultNode(getFetchedValueAnalysis(), getNonNullableFieldWasNullException(), newChildren);
+        }
     }
 
     public static class LeafExecutionResultNode extends ExecutionResultNode {
@@ -96,20 +117,25 @@ public abstract class ExecutionResultNode {
             return null;
         }
 
+        @Override
+        public ExecutionResultNode withChild(ExecutionResultNode child, ExecutionResultNodePosition position) {
+            return Assert.assertShouldNeverHappen("Not available for leafs");
+        }
+
         public Object getValue() {
             return getFetchedValueAnalysis().getCompletedValue();
         }
     }
 
-    public static class NotResolvedObjectResultNode extends ObjectExecutionResultNode {
+    public static class UnresolvedObjectResultNode extends ObjectExecutionResultNode {
 
-        public NotResolvedObjectResultNode(FetchedValueAnalysis fetchedValueAnalysis) {
+        public UnresolvedObjectResultNode(FetchedValueAnalysis fetchedValueAnalysis) {
             super(fetchedValueAnalysis, null, Collections.emptyMap());
         }
 
         @Override
         public String toString() {
-            return "NotResolvedObjectResultNode{" +
+            return "UnresolvedObjectResultNode{" +
                     "fetchedValueAnalysis=" + getFetchedValueAnalysis() +
                     '}';
         }
@@ -138,7 +164,7 @@ public abstract class ExecutionResultNode {
             return root.getChildren().stream().map(ExecutionResultNode::toData).collect(Collectors.toList());
         }
 
-        if (root instanceof NotResolvedObjectResultNode) {
+        if (root instanceof UnresolvedObjectResultNode) {
             FetchedValueAnalysis fetchedValueAnalysis = root.getFetchedValueAnalysis();
             return "Not resolved : " + fetchedValueAnalysis.getExecutionStepInfo().getPath() + " with subSelection " + fetchedValueAnalysis.getFieldSubSelection().toShortString();
         }

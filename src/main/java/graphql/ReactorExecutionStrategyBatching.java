@@ -10,12 +10,14 @@ import graphql.result.ResultNodesUtil;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.util.AbstractMap;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
+
+import static java.util.stream.Collectors.toList;
 
 public class ReactorExecutionStrategyBatching {
 
@@ -46,17 +48,38 @@ public class ReactorExecutionStrategyBatching {
                     acc.put(fetchedValueAnalysis.getName(), executionResultNode);
                     return acc;
                 });
-        nextLevelNodes.map(stringExecutionResultNodeMap -> {
-            // list of root nodes
-            Collection<ExecutionResultNode> rootNodes = stringExecutionResultNodeMap.values();
-            List<ExecutionResultNodeZipper> unresolvedNodes = ResultNodesUtil.getUnresolvedNodes(rootNodes);
-            System.out.println("unresolved: " + unresolvedNodes);
-//            unresolvedNodes.stream().map(notResolvedObjectResultNode -> {
-//                Mono<Map<String, ExecutionResultNode>> subSelection = executeSubSelection(notResolvedObjectResultNode.getFetchedValueAnalysis().getFieldSubSelection());
-//            });
-            return null;
-        }).subscribe();
-        return nextLevelNodes;
+
+        return nextLevelNodes.flatMap(nodeByKey -> {
+            List<Mono<Map.Entry<String, ExecutionResultNode>>> resolvedEntries = nodeByKey.entrySet().stream().map(this::resolveNode).collect(toList());
+            return resolvedEntriesToMap(resolvedEntries);
+        });
+    }
+
+    private Mono<? extends Map<String, ExecutionResultNode>> resolvedEntriesToMap(List<Mono<Map.Entry<String, ExecutionResultNode>>> resolvedEntries) {
+        Mono<List<Map.Entry<String, ExecutionResultNode>>> monoOfEntries = Flux.merge(resolvedEntries).collectList();
+        return monoOfEntries.map(entries -> {
+            Map<String, ExecutionResultNode> result = new LinkedHashMap<>();
+            entries.forEach(entry -> result.put(entry.getKey(), entry.getValue()));
+            return result;
+        });
+    }
+
+    private Mono<Map.Entry<String, ExecutionResultNode>> resolveNode(Map.Entry<String, ExecutionResultNode> keyAndNode) {
+        ExecutionResultNodeZipper unresolvedNodeZipper = ResultNodesUtil.getFirstUnresolvedNode(keyAndNode.getValue());
+        if (unresolvedNodeZipper == null) {
+            return Mono.just(keyAndNode);
+        }
+        Mono<Map<String, ExecutionResultNode>> subSelection =
+                executeSubSelection(unresolvedNodeZipper.getCurNode().getFetchedValueAnalysis().getFieldSubSelection());
+
+        Mono<Map.Entry<String, ExecutionResultNode>> oneResolvedMono = subSelection.map(newChildren -> {
+            ExecutionResultNode.UnresolvedObjectResultNode unresolvedNode = (ExecutionResultNode.UnresolvedObjectResultNode) unresolvedNodeZipper.getCurNode();
+            ExecutionResultNode.ObjectExecutionResultNode newNode = unresolvedNode.withChildren(newChildren);
+            ExecutionResultNodeZipper resolvedNodeZipper = unresolvedNodeZipper.withNode(newNode);
+            ExecutionResultNode resolvedNode = resolvedNodeZipper.toRootNode();
+            return new AbstractMap.SimpleEntry<>(keyAndNode.getKey(), resolvedNode);
+        });
+        return oneResolvedMono.flatMap(oneResolved -> resolveNode(oneResolved));
     }
 
 
@@ -79,7 +102,7 @@ public class ReactorExecutionStrategyBatching {
     }
 
     private Mono<ExecutionResultNode> createObjectResultNode(FetchedValueAnalysis fetchedValueAnalysis) {
-        return Mono.just(new ExecutionResultNode.NotResolvedObjectResultNode(fetchedValueAnalysis));
+        return Mono.just(new ExecutionResultNode.UnresolvedObjectResultNode(fetchedValueAnalysis));
     }
 
     private Optional<NonNullableFieldWasNullException> getFirstNonNullableException(Collection<ExecutionResultNode> collection) {
@@ -94,7 +117,7 @@ public class ReactorExecutionStrategyBatching {
                 .getChildren()
                 .stream()
                 .map(this::createResultNode)
-                .collect(Collectors.toList());
+                .collect(toList());
         boolean listIsNonNull = fetchedValueAnalysis.getExecutionStepInfo().isNonNullType();
         return Flux.mergeSequential(listElements)
                 .collectList()
@@ -119,7 +142,7 @@ public class ReactorExecutionStrategyBatching {
                             .fetchValue(fieldSubSelection.getSource(), sameFields, newExecutionStepInfo)
                             .map(fetchValue -> analyseValue(fetchValue, name, sameFields, newExecutionStepInfo));
                 })
-                .collect(Collectors.toList());
+                .collect(toList());
 
         return Flux.merge(fetchedValues);
     }

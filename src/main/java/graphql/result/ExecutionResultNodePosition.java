@@ -1,5 +1,7 @@
 package graphql.result;
 
+import graphql.Assert;
+
 public class ExecutionResultNodePosition {
 
     private Integer position;
@@ -19,6 +21,14 @@ public class ExecutionResultNodePosition {
 
     public static ExecutionResultNodePosition key(String key) {
         return new ExecutionResultNodePosition(key);
+    }
+
+    public int getPosition() {
+        return Assert.assertNotNull(position);
+    }
+
+    public String getKey() {
+        return Assert.assertNotNull(key);
     }
 
     @Override

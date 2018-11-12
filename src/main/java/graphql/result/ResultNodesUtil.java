@@ -18,13 +18,34 @@ public class ResultNodesUtil {
         ResultNodeTraverser resultNodeTraverser = new ResultNodeTraverser(new ResultNodeVisitor() {
             @Override
             public void visit(ExecutionResultNode node, List<Breadcrumb> breadcrumbs) {
-                if (node instanceof ExecutionResultNode.ObjectExecutionResultNode) {
+                if (node instanceof ExecutionResultNode.UnresolvedObjectResultNode) {
                     result.add(new ExecutionResultNodeZipper(node, breadcrumbs));
                 }
             }
         });
         roots.forEach(resultNodeTraverser::traverse);
         return result;
+    }
+
+    public static List<ExecutionResultNodeZipper> getUnresolvedNodes(ExecutionResultNode root) {
+        List<ExecutionResultNodeZipper> result = new ArrayList<>();
+
+        ResultNodeTraverser resultNodeTraverser = new ResultNodeTraverser(new ResultNodeVisitor() {
+            @Override
+            public void visit(ExecutionResultNode node, List<Breadcrumb> breadcrumbs) {
+                if (node instanceof ExecutionResultNode.UnresolvedObjectResultNode) {
+                    result.add(new ExecutionResultNodeZipper(node, breadcrumbs));
+                }
+            }
+        });
+        resultNodeTraverser.traverse(root);
+        return result;
+    }
+
+    public static ExecutionResultNodeZipper getFirstUnresolvedNode(ExecutionResultNode root) {
+        // TODO: optimize to just goto first one
+        List<ExecutionResultNodeZipper> unresolvedNodes = getUnresolvedNodes(root);
+        return unresolvedNodes.size() > 0 ? unresolvedNodes.get(0) : null;
     }
 
 

@@ -1,8 +1,8 @@
 package graphql.result;
 
 public class Breadcrumb {
-    public ExecutionResultNode node;
-    public ExecutionResultNodePosition position;
+    public final ExecutionResultNode node;
+    public final ExecutionResultNodePosition position;
 
     public Breadcrumb(ExecutionResultNode node, ExecutionResultNodePosition position) {
         this.node = node;
