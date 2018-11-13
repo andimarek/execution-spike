@@ -11,12 +11,11 @@ import java.util.Optional;
 
 public class ListExecutionResultNode extends ExecutionResultNode {
 
-    private List<ExecutionResultNode> children;
+    private final List<ExecutionResultNode> children;
 
     public ListExecutionResultNode(FetchedValueAnalysis fetchedValueAnalysis,
-                                   NonNullableFieldWasNullException nonNullableFieldWasNullException,
                                    List<ExecutionResultNode> children) {
-        super(fetchedValueAnalysis, nonNullableFieldWasNullException);
+        super(fetchedValueAnalysis, ResultNodesUtil.newNullableException(fetchedValueAnalysis, children));
         this.children = Assert.assertNotNull(children);
         children.forEach(Assert::assertNotNull);
     }
@@ -37,7 +36,7 @@ public class ListExecutionResultNode extends ExecutionResultNode {
     public ExecutionResultNode withChild(ExecutionResultNode child, ExecutionResultNodePosition position) {
         List<ExecutionResultNode> newChildren = new ArrayList<>(this.children);
         newChildren.set(position.getIndex(), child);
-        return new ListExecutionResultNode(getFetchedValueAnalysis(), getNonNullableFieldWasNullException(), newChildren);
+        return new ListExecutionResultNode(getFetchedValueAnalysis(), newChildren);
     }
 
     @Override
@@ -45,6 +44,6 @@ public class ListExecutionResultNode extends ExecutionResultNode {
         List<ExecutionResultNode> mergedChildren = new ArrayList<>(this.children);
         newChildren.entrySet().stream().forEach(entry -> mergedChildren.set(entry.getKey().getIndex(), entry.getValue()));
 
-        return new ListExecutionResultNode(getFetchedValueAnalysis(), getNonNullableFieldWasNullException(), mergedChildren);
+        return new ListExecutionResultNode(getFetchedValueAnalysis(), mergedChildren);
     }
 }

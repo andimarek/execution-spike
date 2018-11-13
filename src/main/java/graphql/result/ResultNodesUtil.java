@@ -1,16 +1,74 @@
 package graphql.result;
 
+import graphql.Assert;
+import graphql.FetchedValueAnalysis;
+import graphql.execution.NonNullableFieldWasNullException;
+
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Deque;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 import static graphql.result.ExecutionResultNodePosition.index;
 import static graphql.result.ExecutionResultNodePosition.key;
 import static graphql.result.ObjectExecutionResultNode.UnresolvedObjectResultNode;
 
 public class ResultNodesUtil {
+
+    public static Object toData(ExecutionResultNode root) {
+        if (root instanceof LeafExecutionResultNode) {
+            return root.getFetchedValueAnalysis().isNullValue() ? null : ((LeafExecutionResultNode) root).getValue();
+        }
+        if (root instanceof ListExecutionResultNode) {
+            if (((ListExecutionResultNode) root).getChildNonNullableException().isPresent()) {
+                return null;
+            }
+            return root.getChildren().stream().map(ResultNodesUtil::toData).collect(Collectors.toList());
+        }
+
+        if (root instanceof ObjectExecutionResultNode.UnresolvedObjectResultNode) {
+            FetchedValueAnalysis fetchedValueAnalysis = root.getFetchedValueAnalysis();
+            return "Not resolved : " + fetchedValueAnalysis.getExecutionStepInfo().getPath() + " with subSelection " + fetchedValueAnalysis.getFieldSubSelection().toShortString();
+        }
+        if (root instanceof ObjectExecutionResultNode) {
+            if (((ObjectExecutionResultNode) root).getChildrenNonNullableException().isPresent()) {
+                return null;
+            }
+            Map<String, Object> result = new LinkedHashMap<>();
+            ((ObjectExecutionResultNode) root).getChildrenMap().forEach((key, value) -> result.put(key, toData(value)));
+            return result;
+        }
+        throw new RuntimeException("Unexpected root " + root);
+    }
+
+
+    public static Optional<NonNullableFieldWasNullException> getFirstNonNullableException(Collection<ExecutionResultNode> collection) {
+        return collection.stream()
+                .filter(executionResultNode -> executionResultNode.getNonNullableFieldWasNullException() != null)
+                .map(ExecutionResultNode::getNonNullableFieldWasNullException)
+                .findFirst();
+    }
+
+    public static NonNullableFieldWasNullException newNullableException(FetchedValueAnalysis fetchedValueAnalysis, Collection<ExecutionResultNode> children) {
+        // can only happen for the root node
+        if (fetchedValueAnalysis == null) {
+            return null;
+        }
+        Assert.assertNotNull(children);
+        boolean listIsNonNull = fetchedValueAnalysis.getExecutionStepInfo().isNonNullType();
+        if (listIsNonNull) {
+            Optional<NonNullableFieldWasNullException> firstNonNullableException = getFirstNonNullableException(children);
+            if (firstNonNullableException.isPresent()) {
+                return new NonNullableFieldWasNullException(firstNonNullableException.get());
+            }
+        }
+        return null;
+    }
 
     public static List<ExecutionResultNodeZipper> getUnresolvedNodes(Collection<ExecutionResultNode> roots) {
         List<ExecutionResultNodeZipper> result = new ArrayList<>();

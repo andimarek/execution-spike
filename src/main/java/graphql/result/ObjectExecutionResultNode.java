@@ -15,9 +15,8 @@ public class ObjectExecutionResultNode extends ExecutionResultNode {
     private Map<String, ExecutionResultNode> children;
 
     public ObjectExecutionResultNode(FetchedValueAnalysis fetchedValueAnalysis,
-                                     NonNullableFieldWasNullException nonNullableFieldWasNullException,
                                      Map<String, ExecutionResultNode> children) {
-        super(fetchedValueAnalysis, nonNullableFieldWasNullException);
+        super(fetchedValueAnalysis, ResultNodesUtil.newNullableException(fetchedValueAnalysis, children.values()));
         this.children = children;
     }
 
@@ -30,14 +29,14 @@ public class ObjectExecutionResultNode extends ExecutionResultNode {
     public ExecutionResultNode withChild(ExecutionResultNode child, ExecutionResultNodePosition position) {
         LinkedHashMap<String, ExecutionResultNode> newChildren = new LinkedHashMap<>(this.children);
         newChildren.put(position.getKey(), child);
-        return new graphql.result.ObjectExecutionResultNode(getFetchedValueAnalysis(), getNonNullableFieldWasNullException(), newChildren);
+        return new graphql.result.ObjectExecutionResultNode(getFetchedValueAnalysis(), newChildren);
     }
 
     @Override
     public ExecutionResultNode withNewChildren(Map<ExecutionResultNodePosition, ExecutionResultNode> children) {
         LinkedHashMap<String, ExecutionResultNode> mergedChildren = new LinkedHashMap<>(this.children);
         children.entrySet().stream().forEach(entry -> mergedChildren.put(entry.getKey().getKey(), entry.getValue()));
-        return new graphql.result.ObjectExecutionResultNode(getFetchedValueAnalysis(), getNonNullableFieldWasNullException(), mergedChildren);
+        return new graphql.result.ObjectExecutionResultNode(getFetchedValueAnalysis(), mergedChildren);
     }
 
     public Map<String, ExecutionResultNode> getChildrenMap() {
@@ -52,13 +51,13 @@ public class ObjectExecutionResultNode extends ExecutionResultNode {
     }
 
     public graphql.result.ObjectExecutionResultNode withChildren(Map<String, ExecutionResultNode> children) {
-        return new graphql.result.ObjectExecutionResultNode(getFetchedValueAnalysis(), getNonNullableFieldWasNullException(), children);
+        return new graphql.result.ObjectExecutionResultNode(getFetchedValueAnalysis(), children);
     }
 
     public static class UnresolvedObjectResultNode extends ObjectExecutionResultNode {
 
         public UnresolvedObjectResultNode(FetchedValueAnalysis fetchedValueAnalysis) {
-            super(fetchedValueAnalysis, null, Collections.emptyMap());
+            super(fetchedValueAnalysis, Collections.emptyMap());
         }
 
         @Override
@@ -72,7 +71,7 @@ public class ObjectExecutionResultNode extends ExecutionResultNode {
     public static class RootExecutionResultNode extends ObjectExecutionResultNode {
 
         public RootExecutionResultNode(Map<String, ExecutionResultNode> children) {
-            super(null, null, children);
+            super(null, children);
         }
 
         @Override
