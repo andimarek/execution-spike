@@ -33,6 +33,10 @@ public class ExecutionResultNodeZipper {
         return breadcrumbList.get(breadcrumbList.size() - 1).node;
     }
 
+    public ExecutionResultNode getParent() {
+        return breadcrumbList.get(0).node;
+    }
+
     public ExecutionResultNodeZipper withNode(ExecutionResultNode newNode) {
         return new ExecutionResultNodeZipper(newNode, breadcrumbList);
     }

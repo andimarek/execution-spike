@@ -43,20 +43,19 @@ public class ReactorExecutionStrategyBatching {
     }
 
     public Mono<RootExecutionResultNode> execute(FieldSubSelection fieldSubSelection) {
-        return executeSubSelection(fieldSubSelection).map(RootExecutionResultNode::new);
+        Mono<RootExecutionResultNode> rootMono = fetchSubSelection(fieldSubSelection).map(RootExecutionResultNode::new);
+
+        return rootMono.flatMap(rootNode -> {
+            MultiZipper unresolvedNodes = ResultNodesUtil.getUnresolvedNodes(rootNode);
+            return nextStep(unresolvedNodes);
+        }).map(finalZipper -> {
+            return finalZipper.toRootNode();
+        }).cast(RootExecutionResultNode.class);
     }
 
-    public Mono<Map<String, ExecutionResultNode>> executeSubSelection(FieldSubSelection fieldSubSelection) {
-        Mono<Map<String, ExecutionResultNode>> nextLevelNodes = fetchSubSelection(fieldSubSelection);
-        return nextLevelNodes.flatMap(nodeByKey -> {
-            List<Mono<Tuple2<String, ExecutionResultNode>>> resolvedEntries = nodeByKey.entrySet().stream()
-                    .map(entry -> Tuples.of(entry.getKey(), entry.getValue())).map(this::resolveNode).collect(toList());
-            return resolvedEntriesToMap(resolvedEntries);
-        });
-    }
 
-    public Mono<Map<String, ExecutionResultNode>> fetchSubSelection(FieldSubSelection fieldSubSelection) {
-        Mono<Map<String, ExecutionResultNode>> nextLevelNodes = fetchAndAnalyze(fieldSubSelection)
+    private Mono<Map<String, ExecutionResultNode>> fetchSubSelection(FieldSubSelection fieldSubSelection) {
+        return fetchAndAnalyze(fieldSubSelection)
                 .flatMap(fetchedValueAnalysis -> Mono.zip(Mono.just(fetchedValueAnalysis), createResultNode(fetchedValueAnalysis)))
                 .reduce(new LinkedHashMap<>(), (acc, tuple) -> {
                     FetchedValueAnalysis fetchedValueAnalysis = tuple.getT1();
@@ -64,27 +63,19 @@ public class ReactorExecutionStrategyBatching {
                     acc.put(fetchedValueAnalysis.getName(), executionResultNode);
                     return acc;
                 });
-        return nextLevelNodes;
     }
 
-    private Mono<? extends Map<String, ExecutionResultNode>> resolvedEntriesToMap(List<Mono<Tuple2<String, ExecutionResultNode>>> resolvedEntries) {
-        Mono<List<Tuple2<String, ExecutionResultNode>>> monoOfEntries = Flux.merge(resolvedEntries).collectList();
-        return monoOfEntries.map(entries -> {
-            Map<String, ExecutionResultNode> result = new LinkedHashMap<>();
-            entries.forEach(entry -> result.put(entry.getT1(), entry.getT2()));
-            return result;
-        });
-    }
-
-    private Mono<Tuple2<String, ExecutionResultNode>> resolveNode(Tuple2<String, ExecutionResultNode> keyAndNode) {
-        // done recursively unresolved for each unresolved node
-        MultiZipper unresolvedNodes = ResultNodesUtil.getUnresolvedNodes(keyAndNode.getT2());
-        if (unresolvedNodes.getZippers().size() == 0) {
-            return Mono.just(keyAndNode);
+    private Mono<MultiZipper> nextStep(MultiZipper unresolvedNodes) {
+        MultiZipper nextUnresolvedNodes = ResultNodesUtil.getUnresolvedNodes(unresolvedNodes.toRootNode());
+        if (nextUnresolvedNodes.getZippers().size() == 0) {
+            return Mono.just(nextUnresolvedNodes);
         }
-        // the node can contain n unresolved sub nodes
-        List<Mono<Tuple2<ExecutionResultNodeZipper, ExecutionResultNodeZipper>>> resolvedEntry = unresolvedNodes.getZippers().stream().map(unresolvedNodeZipper -> {
+        return nextStepImpl(nextUnresolvedNodes).flatMap(this::nextStep);
+    }
 
+    private Mono<MultiZipper> nextStepImpl(MultiZipper unresolvedNodes) {
+
+        List<Mono<Tuple2<ExecutionResultNodeZipper, ExecutionResultNodeZipper>>> resolvedEntry = unresolvedNodes.getZippers().stream().map(unresolvedNodeZipper -> {
             FetchedValueAnalysis unresolvedSubSelection = unresolvedNodeZipper.getCurNode().getFetchedValueAnalysis();
             Mono<Map<String, ExecutionResultNode>> subSelection =
                     fetchSubSelection(unresolvedSubSelection.getFieldSubSelection());
@@ -104,9 +95,50 @@ public class ReactorExecutionStrategyBatching {
             for (Tuple2<ExecutionResultNodeZipper, ExecutionResultNodeZipper> tuple : tuple2s) {
                 newMultiZipper = newMultiZipper.withReplacedZipper(tuple.getT1(), tuple.getT2());
             }
-            return Tuples.of(keyAndNode.getT1(), newMultiZipper.toRootNode());
+            return newMultiZipper;
         });
     }
+
+//    private Mono<? extends Map<String, ExecutionResultNode>> resolvedEntriesToMap(List<Mono<Tuple2<String, ExecutionResultNode>>> resolvedEntries) {
+//        Mono<List<Tuple2<String, ExecutionResultNode>>> monoOfEntries = Flux.merge(resolvedEntries).collectList();
+//        return monoOfEntries.map(entries -> {
+//            Map<String, ExecutionResultNode> result = new LinkedHashMap<>();
+//            entries.forEach(entry -> result.put(entry.getT1(), entry.getT2()));
+//            return result;
+//        });
+//    }
+
+//    private Mono<Tuple2<String, ExecutionResultNode>> resolveNode(Tuple2<String, ExecutionResultNode> keyAndNode) {
+//        // done recursively unresolved for each unresolved node
+//        MultiZipper unresolvedNodes = ResultNodesUtil.getUnresolvedNodes(keyAndNode.getT2());
+//        if (unresolvedNodes.getZippers().size() == 0) {
+//            return Mono.just(keyAndNode);
+//        }
+//        // the node can contain n unresolved sub nodes
+//        List<Mono<Tuple2<ExecutionResultNodeZipper, ExecutionResultNodeZipper>>> resolvedEntry = unresolvedNodes.getZippers().stream().map(unresolvedNodeZipper -> {
+//
+//            FetchedValueAnalysis unresolvedSubSelection = unresolvedNodeZipper.getCurNode().getFetchedValueAnalysis();
+//            Mono<Map<String, ExecutionResultNode>> subSelection =
+//                    fetchSubSelection(unresolvedSubSelection.getFieldSubSelection());
+//
+//            Mono<Tuple2<ExecutionResultNodeZipper, ExecutionResultNodeZipper>> oneResolvedNode = subSelection.map(newChildren -> {
+//                UnresolvedObjectResultNode unresolvedNode = (UnresolvedObjectResultNode)
+//                        unresolvedNodeZipper.getCurNode();
+//                ObjectExecutionResultNode newNode = unresolvedNode.withChildren(newChildren);
+//                ExecutionResultNodeZipper newZipper = unresolvedNodeZipper.withNode(newNode);
+//                return Tuples.of(unresolvedNodeZipper, newZipper);
+//            });
+//            return oneResolvedNode;
+//        }).collect(Collectors.toList());
+//
+//        return Flux.merge(resolvedEntry).collectList().map(tuple2s -> {
+//            MultiZipper newMultiZipper = unresolvedNodes;
+//            for (Tuple2<ExecutionResultNodeZipper, ExecutionResultNodeZipper> tuple : tuple2s) {
+//                newMultiZipper = newMultiZipper.withReplacedZipper(tuple.getT1(), tuple.getT2());
+//            }
+//            return Tuples.of(keyAndNode.getT1(), newMultiZipper.toRootNode());
+//        });
+//    }
 
 
     private Mono<ExecutionResultNode> createResultNode(FetchedValueAnalysis fetchedValueAnalysis) {

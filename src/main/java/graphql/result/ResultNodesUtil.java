@@ -4,7 +4,6 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Deque;
-import java.util.Iterator;
 import java.util.List;
 
 import static graphql.result.ExecutionResultNodePosition.index;
@@ -44,11 +43,10 @@ public class ResultNodesUtil {
     }
 
 
-    public static class ResultNodeVisitor {
+    public interface ResultNodeVisitor {
 
-        public void visit(ExecutionResultNode node, List<Breadcrumb> breadcrumbs) {
+        void visit(ExecutionResultNode node, List<Breadcrumb> breadcrumbs);
 
-        }
     }
 
     private static class ResultNodeTraverser {
@@ -76,9 +74,7 @@ public class ResultNodesUtil {
                     breadCrumbsStack.pop();
                 }
             }
-            List<Breadcrumb> breadcrumbs = new ArrayList<>();
-            Iterator<Breadcrumb> breadcrumbIterator = breadCrumbsStack.descendingIterator();
-            breadcrumbIterator.forEachRemaining(breadcrumbs::add);
+            List<Breadcrumb> breadcrumbs = new ArrayList<>(breadCrumbsStack);
             visitor.visit(node, breadcrumbs);
         }
 

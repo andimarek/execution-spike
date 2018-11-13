@@ -79,6 +79,20 @@ public class ObjectExecutionResultNode extends ExecutionResultNode {
         public FetchedValueAnalysis getFetchedValueAnalysis() {
             throw new RuntimeException("Root node");
         }
+
+        @Override
+        public ExecutionResultNode withNewChildren(Map<ExecutionResultNodePosition, ExecutionResultNode> children) {
+            LinkedHashMap<String, ExecutionResultNode> mergedChildren = new LinkedHashMap<>(getChildrenMap());
+            children.entrySet().stream().forEach(entry -> mergedChildren.put(entry.getKey().getKey(), entry.getValue()));
+            return new graphql.result.ObjectExecutionResultNode.RootExecutionResultNode(mergedChildren);
+        }
+
+        @Override
+        public ExecutionResultNode withChild(ExecutionResultNode child, ExecutionResultNodePosition position) {
+            LinkedHashMap<String, ExecutionResultNode> newChildren = new LinkedHashMap<>(getChildrenMap());
+            newChildren.put(position.getKey(), child);
+            return new graphql.result.ObjectExecutionResultNode.RootExecutionResultNode(newChildren);
+        }
     }
 
 }

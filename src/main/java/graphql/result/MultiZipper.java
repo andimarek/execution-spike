@@ -21,6 +21,7 @@ public class MultiZipper {
     }
 
     public ExecutionResultNode toRootNode() {
+        if (zippers.size() == 0) return commonRoot;
 
         List<ExecutionResultNodeZipper> curZippers = new ArrayList<>(zippers);
         while (curZippers.size() > 1) {
@@ -37,7 +38,7 @@ public class MultiZipper {
             curZippers.addAll(newZippers);
         }
         Assert.assertTrue(curZippers.size() == 1, "illegal state");
-        return curZippers.get(0).getCurNode();
+        return curZippers.get(0).toRootNode();
     }
 
     public List<ExecutionResultNodeZipper> getZippers() {
@@ -72,7 +73,7 @@ public class MultiZipper {
     }
 
     private Map<ExecutionResultNode, List<ExecutionResultNodeZipper>> zipperWithSameParent(List<ExecutionResultNodeZipper> zippers) {
-        return zippers.stream().collect(Collectors.groupingBy(ExecutionResultNodeZipper::getRootNode));
+        return zippers.stream().collect(Collectors.groupingBy(ExecutionResultNodeZipper::getParent));
     }
 
 }
