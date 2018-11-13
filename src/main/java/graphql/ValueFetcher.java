@@ -46,6 +46,7 @@ public class ValueFetcher {
 
 
     public Mono<List<FetchedValue>> fetchBatchedValues(List<Object> sources, List<Field> sameFields, List<ExecutionStepInfo> executionInfos) {
+        System.out.println("Fetch batch values size: " + sources.size());
         ExecutionStepInfo executionStepInfo = executionInfos.get(0);
         if (isDataFetcherBatched(sameFields, executionStepInfo)) {
             //TODO: the stepInfo is not correct for all values: how to give the DF all executionInfos?

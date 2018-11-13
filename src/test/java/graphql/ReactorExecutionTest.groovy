@@ -343,7 +343,7 @@ class ReactorExecutionTest extends Specification {
 
     }
 
-    def "test simple batching "() {
+    def "test list"() {
         def fooData = [[id: "fooId1"], [id: "fooId2"], [id: "fooId3"]]
         def dataFetchers = [
                 Query: [foo: { env -> fooData } as DataFetcher]
@@ -361,6 +361,49 @@ class ReactorExecutionTest extends Specification {
         def document = graphql.TestUtil.parseQuery("""
         {foo {
             id
+        }}
+        """)
+
+        ExecutionInput executionInput = ExecutionInput.newExecutionInput()
+                .build()
+
+
+        ReactorExecution reactorExecution = new ReactorExecution();
+
+        when:
+        def monoResult = reactorExecution.execute(document, schema, ExecutionId.generate(), executionInput)
+        def result = monoResult.toFuture().get()
+
+
+        then:
+        result.getData() == [foo: fooData]
+
+
+    }
+
+    def "test list in lists "() {
+        def fooData = [[bar: [[id: "barId1"], [id: "barId2"]]], [bar: null], [bar: [[id: "barId3"], [id: "barId4"], [id: "barId5"]]]]
+        def dataFetchers = [
+                Query: [foo: { env -> fooData } as DataFetcher]
+        ]
+        def schema = TestUtil.schema("""
+        type Query {
+            foo: [Foo]
+        }
+        type Foo {
+            bar: [Bar]
+        }    
+        type Bar {
+            id: ID
+        }
+        """, dataFetchers)
+
+
+        def document = graphql.TestUtil.parseQuery("""
+        {foo {
+            bar {
+                id
+            }
         }}
         """)
 

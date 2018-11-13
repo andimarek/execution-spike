@@ -4,6 +4,7 @@ import graphql.execution.MissingRootTypeException;
 import graphql.language.OperationDefinition;
 import graphql.schema.GraphQLObjectType;
 import graphql.schema.GraphQLSchema;
+import reactor.core.publisher.Mono;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -11,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.stream.Collectors;
 
 import static graphql.Assert.assertShouldNeverHappen;
 import static graphql.language.OperationDefinition.Operation.MUTATION;
@@ -115,6 +117,16 @@ public class Common {
             }
         }
         return result;
+    }
+
+    public static <T> Mono<List<T>> flastList(Mono<List<List<T>>> mono) {
+        return mono.map(Common::flatList);
+    }
+
+    public static <T> List<T> flatList(List<List<T>> listLists) {
+        return listLists.stream()
+                .flatMap(List::stream)
+                .collect(Collectors.toList());
     }
 
     public static void main(String[] args) {

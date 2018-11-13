@@ -41,8 +41,16 @@ public class MultiZipper {
         return curZippers.get(0).toRootNode();
     }
 
+    public ExecutionResultNode getCommonRoot() {
+        return commonRoot;
+    }
+
     public List<ExecutionResultNodeZipper> getZippers() {
         return new ArrayList<>(zippers);
+    }
+
+    public MultiZipper withZippers(List<ExecutionResultNodeZipper> zippers) {
+        return new MultiZipper(commonRoot, zippers);
     }
 
     public MultiZipper withReplacedZipper(ExecutionResultNodeZipper oldZipper, ExecutionResultNodeZipper newZipper) {
