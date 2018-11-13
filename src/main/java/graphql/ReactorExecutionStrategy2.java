@@ -5,6 +5,8 @@ import graphql.execution.ExecutionStepInfo;
 import graphql.execution.NonNullableFieldWasNullException;
 import graphql.language.Field;
 import graphql.result.ExecutionResultNode;
+import graphql.result.ListExecutionResultNode;
+import graphql.result.ObjectExecutionResultNode;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -14,6 +16,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
+
+import static graphql.result.ObjectExecutionResultNode.RootExecutionResultNode;
 
 public class ReactorExecutionStrategy2 {
 
@@ -31,8 +35,8 @@ public class ReactorExecutionStrategy2 {
         this.executionInfoFactory = new ExecutionStepInfoFactory(executionContext);
     }
 
-    public Mono<ExecutionResultNode.RootExecutionResultNode> execute(FieldSubSelection fieldSubSelection) {
-        return executeSubSelection(fieldSubSelection).map(ExecutionResultNode.RootExecutionResultNode::new);
+    public Mono<RootExecutionResultNode> execute(FieldSubSelection fieldSubSelection) {
+        return executeSubSelection(fieldSubSelection).map(RootExecutionResultNode::new);
     }
 
     public Mono<Map<String, ExecutionResultNode>> executeSubSelection(FieldSubSelection fieldSubSelection) {
@@ -72,9 +76,9 @@ public class ReactorExecutionStrategy2 {
                     Optional<NonNullableFieldWasNullException> subException = getFirstNonNullableException(childrenMap.values());
                     if (objectIsNonNull && subException.isPresent()) {
                         NonNullableFieldWasNullException objectException = new NonNullableFieldWasNullException(subException.get());
-                        return new ExecutionResultNode.ObjectExecutionResultNode(fetchedValueAnalysis, objectException, childrenMap);
+                        return new ObjectExecutionResultNode(fetchedValueAnalysis, objectException, childrenMap);
                     }
-                    return new ExecutionResultNode.ObjectExecutionResultNode(fetchedValueAnalysis, null, childrenMap);
+                    return new ObjectExecutionResultNode(fetchedValueAnalysis, null, childrenMap);
                 });
     }
 
@@ -98,9 +102,9 @@ public class ReactorExecutionStrategy2 {
                     Optional<NonNullableFieldWasNullException> subException = getFirstNonNullableException(executionResultNodes);
                     if (listIsNonNull && subException.isPresent()) {
                         NonNullableFieldWasNullException listException = new NonNullableFieldWasNullException(subException.get());
-                        return new ExecutionResultNode.ListExecutionResultNode(fetchedValueAnalysis, listException, executionResultNodes);
+                        return new ListExecutionResultNode(fetchedValueAnalysis, listException, executionResultNodes);
                     }
-                    return new ExecutionResultNode.ListExecutionResultNode(fetchedValueAnalysis, null, executionResultNodes);
+                    return new ListExecutionResultNode(fetchedValueAnalysis, null, executionResultNodes);
                 });
     }
 

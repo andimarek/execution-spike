@@ -6,17 +6,24 @@ import graphql.execution.NonNullableFieldWasNullException;
 import graphql.language.Field;
 import graphql.result.ExecutionResultNode;
 import graphql.result.ExecutionResultNodeZipper;
+import graphql.result.ListExecutionResultNode;
+import graphql.result.MultiZipper;
+import graphql.result.ObjectExecutionResultNode;
 import graphql.result.ResultNodesUtil;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.util.function.Tuple2;
+import reactor.util.function.Tuples;
 
-import java.util.AbstractMap;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
+import static graphql.result.ObjectExecutionResultNode.RootExecutionResultNode;
+import static graphql.result.ObjectExecutionResultNode.UnresolvedObjectResultNode;
 import static java.util.stream.Collectors.toList;
 
 public class ReactorExecutionStrategyBatching {
@@ -35,11 +42,20 @@ public class ReactorExecutionStrategyBatching {
         this.executionInfoFactory = new ExecutionStepInfoFactory(executionContext);
     }
 
-    public Mono<ExecutionResultNode.RootExecutionResultNode> execute(FieldSubSelection fieldSubSelection) {
-        return executeSubSelection(fieldSubSelection).map(ExecutionResultNode.RootExecutionResultNode::new);
+    public Mono<RootExecutionResultNode> execute(FieldSubSelection fieldSubSelection) {
+        return executeSubSelection(fieldSubSelection).map(RootExecutionResultNode::new);
     }
 
     public Mono<Map<String, ExecutionResultNode>> executeSubSelection(FieldSubSelection fieldSubSelection) {
+        Mono<Map<String, ExecutionResultNode>> nextLevelNodes = fetchSubSelection(fieldSubSelection);
+        return nextLevelNodes.flatMap(nodeByKey -> {
+            List<Mono<Tuple2<String, ExecutionResultNode>>> resolvedEntries = nodeByKey.entrySet().stream()
+                    .map(entry -> Tuples.of(entry.getKey(), entry.getValue())).map(this::resolveNode).collect(toList());
+            return resolvedEntriesToMap(resolvedEntries);
+        });
+    }
+
+    public Mono<Map<String, ExecutionResultNode>> fetchSubSelection(FieldSubSelection fieldSubSelection) {
         Mono<Map<String, ExecutionResultNode>> nextLevelNodes = fetchAndAnalyze(fieldSubSelection)
                 .flatMap(fetchedValueAnalysis -> Mono.zip(Mono.just(fetchedValueAnalysis), createResultNode(fetchedValueAnalysis)))
                 .reduce(new LinkedHashMap<>(), (acc, tuple) -> {
@@ -48,38 +64,48 @@ public class ReactorExecutionStrategyBatching {
                     acc.put(fetchedValueAnalysis.getName(), executionResultNode);
                     return acc;
                 });
-
-        return nextLevelNodes.flatMap(nodeByKey -> {
-            List<Mono<Map.Entry<String, ExecutionResultNode>>> resolvedEntries = nodeByKey.entrySet().stream().map(this::resolveNode).collect(toList());
-            return resolvedEntriesToMap(resolvedEntries);
-        });
+        return nextLevelNodes;
     }
 
-    private Mono<? extends Map<String, ExecutionResultNode>> resolvedEntriesToMap(List<Mono<Map.Entry<String, ExecutionResultNode>>> resolvedEntries) {
-        Mono<List<Map.Entry<String, ExecutionResultNode>>> monoOfEntries = Flux.merge(resolvedEntries).collectList();
+    private Mono<? extends Map<String, ExecutionResultNode>> resolvedEntriesToMap(List<Mono<Tuple2<String, ExecutionResultNode>>> resolvedEntries) {
+        Mono<List<Tuple2<String, ExecutionResultNode>>> monoOfEntries = Flux.merge(resolvedEntries).collectList();
         return monoOfEntries.map(entries -> {
             Map<String, ExecutionResultNode> result = new LinkedHashMap<>();
-            entries.forEach(entry -> result.put(entry.getKey(), entry.getValue()));
+            entries.forEach(entry -> result.put(entry.getT1(), entry.getT2()));
             return result;
         });
     }
 
-    private Mono<Map.Entry<String, ExecutionResultNode>> resolveNode(Map.Entry<String, ExecutionResultNode> keyAndNode) {
-        ExecutionResultNodeZipper unresolvedNodeZipper = ResultNodesUtil.getFirstUnresolvedNode(keyAndNode.getValue());
-        if (unresolvedNodeZipper == null) {
+    private Mono<Tuple2<String, ExecutionResultNode>> resolveNode(Tuple2<String, ExecutionResultNode> keyAndNode) {
+        // done recursively unresolved for each unresolved node
+        MultiZipper unresolvedNodes = ResultNodesUtil.getUnresolvedNodes(keyAndNode.getT2());
+        if (unresolvedNodes.getZippers().size() == 0) {
             return Mono.just(keyAndNode);
         }
-        Mono<Map<String, ExecutionResultNode>> subSelection =
-                executeSubSelection(unresolvedNodeZipper.getCurNode().getFetchedValueAnalysis().getFieldSubSelection());
+        // the node can contain n unresolved sub nodes
+        List<Mono<Tuple2<ExecutionResultNodeZipper, ExecutionResultNodeZipper>>> resolvedEntry = unresolvedNodes.getZippers().stream().map(unresolvedNodeZipper -> {
 
-        Mono<Map.Entry<String, ExecutionResultNode>> oneResolvedMono = subSelection.map(newChildren -> {
-            ExecutionResultNode.UnresolvedObjectResultNode unresolvedNode = (ExecutionResultNode.UnresolvedObjectResultNode) unresolvedNodeZipper.getCurNode();
-            ExecutionResultNode.ObjectExecutionResultNode newNode = unresolvedNode.withChildren(newChildren);
-            ExecutionResultNodeZipper resolvedNodeZipper = unresolvedNodeZipper.withNode(newNode);
-            ExecutionResultNode resolvedNode = resolvedNodeZipper.toRootNode();
-            return new AbstractMap.SimpleEntry<>(keyAndNode.getKey(), resolvedNode);
+            FetchedValueAnalysis unresolvedSubSelection = unresolvedNodeZipper.getCurNode().getFetchedValueAnalysis();
+            Mono<Map<String, ExecutionResultNode>> subSelection =
+                    fetchSubSelection(unresolvedSubSelection.getFieldSubSelection());
+
+            Mono<Tuple2<ExecutionResultNodeZipper, ExecutionResultNodeZipper>> oneResolvedNode = subSelection.map(newChildren -> {
+                UnresolvedObjectResultNode unresolvedNode = (UnresolvedObjectResultNode)
+                        unresolvedNodeZipper.getCurNode();
+                ObjectExecutionResultNode newNode = unresolvedNode.withChildren(newChildren);
+                ExecutionResultNodeZipper newZipper = unresolvedNodeZipper.withNode(newNode);
+                return Tuples.of(unresolvedNodeZipper, newZipper);
+            });
+            return oneResolvedNode;
+        }).collect(Collectors.toList());
+
+        return Flux.merge(resolvedEntry).collectList().map(tuple2s -> {
+            MultiZipper newMultiZipper = unresolvedNodes;
+            for (Tuple2<ExecutionResultNodeZipper, ExecutionResultNodeZipper> tuple : tuple2s) {
+                newMultiZipper = newMultiZipper.withReplacedZipper(tuple.getT1(), tuple.getT2());
+            }
+            return Tuples.of(keyAndNode.getT1(), newMultiZipper.toRootNode());
         });
-        return oneResolvedMono.flatMap(oneResolved -> resolveNode(oneResolved));
     }
 
 
@@ -102,7 +128,7 @@ public class ReactorExecutionStrategyBatching {
     }
 
     private Mono<ExecutionResultNode> createObjectResultNode(FetchedValueAnalysis fetchedValueAnalysis) {
-        return Mono.just(new ExecutionResultNode.UnresolvedObjectResultNode(fetchedValueAnalysis));
+        return Mono.just(new UnresolvedObjectResultNode(fetchedValueAnalysis));
     }
 
     private Optional<NonNullableFieldWasNullException> getFirstNonNullableException(Collection<ExecutionResultNode> collection) {
@@ -125,9 +151,9 @@ public class ReactorExecutionStrategyBatching {
                     Optional<NonNullableFieldWasNullException> subException = getFirstNonNullableException(executionResultNodes);
                     if (listIsNonNull && subException.isPresent()) {
                         NonNullableFieldWasNullException listException = new NonNullableFieldWasNullException(subException.get());
-                        return new ExecutionResultNode.ListExecutionResultNode(fetchedValueAnalysis, listException, executionResultNodes);
+                        return new ListExecutionResultNode(fetchedValueAnalysis, listException, executionResultNodes);
                     }
-                    return new ExecutionResultNode.ListExecutionResultNode(fetchedValueAnalysis, null, executionResultNodes);
+                    return new ListExecutionResultNode(fetchedValueAnalysis, null, executionResultNodes);
                 });
     }
 

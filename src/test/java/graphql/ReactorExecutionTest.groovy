@@ -381,4 +381,42 @@ class ReactorExecutionTest extends Specification {
 
     }
 
+    def "test simple batching with null value in list"() {
+        def fooData = [[id: "fooId1"], null, [id: "fooId3"]]
+        def dataFetchers = [
+                Query: [foo: { env -> fooData } as DataFetcher]
+        ]
+        def schema = TestUtil.schema("""
+        type Query {
+            foo: [Foo]
+        }
+        type Foo {
+            id: ID
+        }    
+        """, dataFetchers)
+
+
+        def document = graphql.TestUtil.parseQuery("""
+        {foo {
+            id
+        }}
+        """)
+
+        ExecutionInput executionInput = ExecutionInput.newExecutionInput()
+                .build()
+
+
+        ReactorExecution reactorExecution = new ReactorExecution();
+
+        when:
+        def monoResult = reactorExecution.execute(document, schema, ExecutionId.generate(), executionInput)
+        def result = monoResult.toFuture().get()
+
+
+        then:
+        result.getData() == [foo: fooData]
+
+
+    }
+
 }

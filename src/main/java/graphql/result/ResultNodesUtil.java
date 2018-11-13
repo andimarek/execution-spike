@@ -9,6 +9,7 @@ import java.util.List;
 
 import static graphql.result.ExecutionResultNodePosition.index;
 import static graphql.result.ExecutionResultNodePosition.key;
+import static graphql.result.ObjectExecutionResultNode.UnresolvedObjectResultNode;
 
 public class ResultNodesUtil {
 
@@ -18,7 +19,7 @@ public class ResultNodesUtil {
         ResultNodeTraverser resultNodeTraverser = new ResultNodeTraverser(new ResultNodeVisitor() {
             @Override
             public void visit(ExecutionResultNode node, List<Breadcrumb> breadcrumbs) {
-                if (node instanceof ExecutionResultNode.UnresolvedObjectResultNode) {
+                if (node instanceof UnresolvedObjectResultNode) {
                     result.add(new ExecutionResultNodeZipper(node, breadcrumbs));
                 }
             }
@@ -27,25 +28,19 @@ public class ResultNodesUtil {
         return result;
     }
 
-    public static List<ExecutionResultNodeZipper> getUnresolvedNodes(ExecutionResultNode root) {
-        List<ExecutionResultNodeZipper> result = new ArrayList<>();
+    public static MultiZipper getUnresolvedNodes(ExecutionResultNode root) {
+        List<ExecutionResultNodeZipper> zippers = new ArrayList<>();
 
         ResultNodeTraverser resultNodeTraverser = new ResultNodeTraverser(new ResultNodeVisitor() {
             @Override
             public void visit(ExecutionResultNode node, List<Breadcrumb> breadcrumbs) {
-                if (node instanceof ExecutionResultNode.UnresolvedObjectResultNode) {
-                    result.add(new ExecutionResultNodeZipper(node, breadcrumbs));
+                if (node instanceof UnresolvedObjectResultNode) {
+                    zippers.add(new ExecutionResultNodeZipper(node, breadcrumbs));
                 }
             }
         });
         resultNodeTraverser.traverse(root);
-        return result;
-    }
-
-    public static ExecutionResultNodeZipper getFirstUnresolvedNode(ExecutionResultNode root) {
-        // TODO: optimize to just goto first one
-        List<ExecutionResultNodeZipper> unresolvedNodes = getUnresolvedNodes(root);
-        return unresolvedNodes.size() > 0 ? unresolvedNodes.get(0) : null;
+        return new MultiZipper(root, zippers);
     }
 
 
@@ -66,14 +61,14 @@ public class ResultNodesUtil {
         }
 
         public void traverse(ExecutionResultNode node) {
-            if (node instanceof ExecutionResultNode.ObjectExecutionResultNode) {
-                ((ExecutionResultNode.ObjectExecutionResultNode) node).getChildrenMap().forEach((name, child) -> {
+            if (node instanceof ObjectExecutionResultNode) {
+                ((ObjectExecutionResultNode) node).getChildrenMap().forEach((name, child) -> {
                     breadCrumbsStack.push(new Breadcrumb(node, key(name)));
                     traverse(child);
                     breadCrumbsStack.pop();
                 });
             }
-            if (node instanceof ExecutionResultNode.ListExecutionResultNode) {
+            if (node instanceof ListExecutionResultNode) {
                 List<ExecutionResultNode> children = node.getChildren();
                 for (int i = 0; i < children.size(); i++) {
                     breadCrumbsStack.push(new Breadcrumb(node, index(i)));
