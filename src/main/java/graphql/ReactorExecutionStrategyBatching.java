@@ -94,35 +94,6 @@ public class ReactorExecutionStrategyBatching {
 
     }
 
-//    private Mono<MultiZipper> nextStepImpl(MultiZipper unresolvedNodes) {
-//        List<Mono<Tuple2<ExecutionResultNodeZipper, ExecutionResultNodeZipper>>> resolvedEntry = unresolvedNodes.getZippers().stream()
-//                .map(this::resolveOneNode).collect(Collectors.toList());
-//
-//        return Flux.merge(resolvedEntry).collectList().map(tuple2s -> {
-//            MultiZipper newMultiZipper = unresolvedNodes;
-//            for (Tuple2<ExecutionResultNodeZipper, ExecutionResultNodeZipper> tuple : tuple2s) {
-//                newMultiZipper = newMultiZipper.withReplacedZipper(tuple.getT1(), tuple.getT2());
-//            }
-//            return newMultiZipper;
-//        });
-//    }
-//
-//
-//    private Mono<Tuple2<ExecutionResultNodeZipper, ExecutionResultNodeZipper>> resolveOneNode(ExecutionResultNodeZipper unresolvedNodeZipper) {
-//        FetchedValueAnalysis unresolvedSubSelection = unresolvedNodeZipper.getCurNode().getFetchedValueAnalysis();
-//        Mono<Map<String, ExecutionResultNode>> subSelection =
-//                fetchSubSelection(unresolvedSubSelection.getFieldSubSelection());
-//
-//        Mono<Tuple2<ExecutionResultNodeZipper, ExecutionResultNodeZipper>> oneResolvedNode = subSelection.map(newChildren -> {
-//            UnresolvedObjectResultNode unresolvedNode = (UnresolvedObjectResultNode)
-//                    unresolvedNodeZipper.getCurNode();
-//            ObjectExecutionResultNode newNode = unresolvedNode.withChildren(newChildren);
-//            ExecutionResultNodeZipper newZipper = unresolvedNodeZipper.withNode(newNode);
-//            return Tuples.of(unresolvedNodeZipper, newZipper);
-//        });
-//        return oneResolvedNode;
-//    }
-
     private List<MultiZipper> groupNodesIntoBatches(MultiZipper unresolvedZipper) {
         Map<Map<String, List<Field>>, List<ExecutionResultNodeZipper>> zipperBySubSelection = unresolvedZipper.getZippers().stream()
                 .collect(groupingBy(executionResultNodeZipper -> executionResultNodeZipper.getCurNode().getFetchedValueAnalysis().getFieldSubSelection().getFields()));
@@ -191,6 +162,7 @@ public class ReactorExecutionStrategyBatching {
     }
 
 
+    // only used for the root sub selection atm
     private Flux<FetchedValueAnalysis> fetchAndAnalyze(FieldSubSelection fieldSubSelection) {
         List<Mono<FetchedValueAnalysis>> fetchedValues = fieldSubSelection.getFields().entrySet().stream()
                 .map(entry -> {
@@ -206,6 +178,14 @@ public class ReactorExecutionStrategyBatching {
         return Flux.merge(fetchedValues);
     }
 
+    // only used for the root sub selection atm
+    private FetchedValueAnalysis analyseValue(FetchedValue fetchedValue, String name, List<Field> field, ExecutionStepInfo executionInfo) {
+        FetchedValueAnalysis fetchedValueAnalysis = fetchedValueAnalyzer.analyzeFetchedValue(fetchedValue.getFetchedValue(), name, field, executionInfo);
+        fetchedValueAnalysis.setFetchedValue(fetchedValue);
+        return fetchedValueAnalysis;
+    }
+
+
     private List<FetchedValueAnalysis> analyseValues(List<FetchedValue> fetchedValues, String name, List<Field> field, List<ExecutionStepInfo> executionInfos) {
         List<FetchedValueAnalysis> result = new ArrayList<>();
         for (int i = 0; i < fetchedValues.size(); i++) {
@@ -217,12 +197,5 @@ public class ReactorExecutionStrategyBatching {
         }
         return result;
     }
-
-    private FetchedValueAnalysis analyseValue(FetchedValue fetchedValue, String name, List<Field> field, ExecutionStepInfo executionInfo) {
-        FetchedValueAnalysis fetchedValueAnalysis = fetchedValueAnalyzer.analyzeFetchedValue(fetchedValue.getFetchedValue(), name, field, executionInfo);
-        fetchedValueAnalysis.setFetchedValue(fetchedValue);
-        return fetchedValueAnalysis;
-    }
-
 
 }
