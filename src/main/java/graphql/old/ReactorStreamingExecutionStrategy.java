@@ -5,7 +5,6 @@ import graphql.FetchedValue;
 import graphql.FetchedValueAnalysis;
 import graphql.FetchedValueAnalyzer;
 import graphql.FieldSubSelection;
-import graphql.ValueFetcher;
 import graphql.execution.ExecutionContext;
 import graphql.execution.ExecutionStepInfo;
 import graphql.language.Field;
@@ -16,7 +15,7 @@ import reactor.core.publisher.Mono;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static graphql.ValueFetcher.NULL_VALUE;
+import static graphql.old.ValueFetcher.NULL_VALUE;
 
 public class ReactorStreamingExecutionStrategy {
 

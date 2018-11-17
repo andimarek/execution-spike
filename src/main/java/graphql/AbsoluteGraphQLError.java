@@ -14,7 +14,7 @@ import java.util.stream.Collectors;
 
 import static graphql.Assert.assertNotNull;
 
-class AbsoluteGraphQLError implements GraphQLError {
+public class AbsoluteGraphQLError implements GraphQLError {
 
     private final List<SourceLocation> locations;
     private final List<Object> absolutePath;
@@ -22,7 +22,7 @@ class AbsoluteGraphQLError implements GraphQLError {
     private final ErrorType errorType;
     private final Map<String, Object> extensions;
 
-    AbsoluteGraphQLError(List<Field> field, ExecutionPath executionPath, GraphQLError relativeError) {
+    public AbsoluteGraphQLError(List<Field> field, ExecutionPath executionPath, GraphQLError relativeError) {
         assertNotNull(relativeError);
         this.absolutePath = createAbsolutePath(executionPath, relativeError);
         this.locations = createAbsoluteLocations(relativeError, field);

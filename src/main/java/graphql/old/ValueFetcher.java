@@ -1,6 +1,13 @@
-package graphql;
+package graphql.old;
 
 
+import graphql.AbsoluteGraphQLError;
+import graphql.Assert;
+import graphql.BatchedDataFetcher;
+import graphql.ExceptionWhileDataFetching;
+import graphql.FetchedValue;
+import graphql.GraphQLError;
+import graphql.UnboxPossibleOptional;
 import graphql.execution.DataFetcherResult;
 import graphql.execution.ExecutionContext;
 import graphql.execution.ExecutionId;
