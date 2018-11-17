@@ -1,5 +1,6 @@
 package graphql;
 
+import graphql.execution.Async;
 import graphql.execution.ExecutionContext;
 import graphql.execution.ExecutionStepInfo;
 import graphql.language.Field;
@@ -8,8 +9,6 @@ import graphql.result.ExecutionResultNodeZipper;
 import graphql.result.MultiZipper;
 import graphql.result.ObjectExecutionResultNode;
 import graphql.result.ResultNodesUtil;
-import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
 import reactor.util.function.Tuple2;
 import reactor.util.function.Tuples;
 
@@ -17,6 +16,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 import static graphql.result.ObjectExecutionResultNode.RootExecutionResultNode;
@@ -24,72 +24,75 @@ import static graphql.result.ObjectExecutionResultNode.UnresolvedObjectResultNod
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.toList;
 
-public class ReactorExecutionStrategyBatching {
+public class CFExecutionStrategyBatching {
 
     ExecutionStepInfoFactory executionInfoFactory;
-    ValueFetcher valueFetcher;
+    ValueFetcherCF valueFetcher;
     ResultNodesCreator resultNodesCreator = new ResultNodesCreator();
 
     private final ExecutionContext executionContext;
     private FetchedValueAnalyzer fetchedValueAnalyzer;
 
 
-    public ReactorExecutionStrategyBatching(ExecutionContext executionContext) {
+    public CFExecutionStrategyBatching(ExecutionContext executionContext) {
         this.executionContext = executionContext;
         this.fetchedValueAnalyzer = new FetchedValueAnalyzer(executionContext);
-        this.valueFetcher = new ValueFetcher(executionContext);
+        this.valueFetcher = new ValueFetcherCF(executionContext);
         this.executionInfoFactory = new ExecutionStepInfoFactory(executionContext);
     }
 
-    public Mono<RootExecutionResultNode> execute(FieldSubSelection fieldSubSelection) {
-        Mono<RootExecutionResultNode> rootMono = fetchSubSelection(fieldSubSelection).map(RootExecutionResultNode::new);
+    public CompletableFuture<RootExecutionResultNode> execute(FieldSubSelection fieldSubSelection) {
+        CompletableFuture<RootExecutionResultNode> rootMono = fetchSubSelection(fieldSubSelection).thenApply(RootExecutionResultNode::new);
 
-        return rootMono.flatMap(rootNode -> {
-            MultiZipper unresolvedNodes = ResultNodesUtil.getUnresolvedNodes(rootNode);
-            return nextStep(unresolvedNodes);
-        }).map(finalZipper -> finalZipper.toRootNode())
-                .cast(RootExecutionResultNode.class);
+        return rootMono
+                .thenCompose(rootNode -> {
+                    MultiZipper unresolvedNodes = ResultNodesUtil.getUnresolvedNodes(rootNode);
+                    return nextStep(unresolvedNodes);
+                })
+                .thenApply(finalZipper -> finalZipper.toRootNode())
+                .thenApply(RootExecutionResultNode.class::cast);
     }
 
 
-    private Mono<Map<String, ExecutionResultNode>> fetchSubSelection(FieldSubSelection fieldSubSelection) {
-        Flux<FetchedValueAnalysis> fetchedValueAnalysisFlux = fetchAndAnalyze(fieldSubSelection);
+    private CompletableFuture<Map<String, ExecutionResultNode>> fetchSubSelection(FieldSubSelection fieldSubSelection) {
+        CompletableFuture<List<FetchedValueAnalysis>> fetchedValueAnalysisFlux = fetchAndAnalyze(fieldSubSelection);
         return fetchedValueAnalysisFluxToNodes(fetchedValueAnalysisFlux);
     }
 
-    private Mono<Map<String, ExecutionResultNode>> fetchedValueAnalysisFluxToNodes(Flux<FetchedValueAnalysis> fetchedValueAnalysisFlux) {
-        Flux<Tuple2<String, ExecutionResultNode>> tuplesFlux = fetchedValueAnalysisFlux
-                .map(fetchedValueAnalysis -> Tuples.of(fetchedValueAnalysis.getName(), resultNodesCreator.createResultNode(fetchedValueAnalysis)));
-        return tuplesToMap(tuplesFlux);
+    private CompletableFuture<Map<String, ExecutionResultNode>> fetchedValueAnalysisFluxToNodes(CompletableFuture<List<FetchedValueAnalysis>> fetchedValueAnalysisFlux) {
+        CompletableFuture<List<Tuple2<String, ExecutionResultNode>>> tuplesList = Async2.map(fetchedValueAnalysisFlux,
+                fetchedValueAnalysis -> Tuples.of(fetchedValueAnalysis.getName(), resultNodesCreator.createResultNode(fetchedValueAnalysis)));
+        return tuplesToMap(tuplesList);
     }
 
 
-    private <U> Mono<Map<String, U>> tuplesToMap(Flux<Tuple2<String, U>> tuplesFlux) {
-        return tuplesFlux.reduce(new LinkedHashMap<>(), (acc, tuple) -> {
+    private <U> CompletableFuture<Map<String, U>> tuplesToMap(CompletableFuture<List<Tuple2<String, U>>> tuplesFlux) {
+        return Async2.reduce(tuplesFlux, new LinkedHashMap<>(), (acc, tuple) -> {
             U value = tuple.getT2();
             acc.put(tuple.getT1(), value);
             return acc;
         });
     }
 
-    private Mono<MultiZipper> nextStep(MultiZipper multizipper) {
+    private CompletableFuture<MultiZipper> nextStep(MultiZipper multizipper) {
         MultiZipper nextUnresolvedNodes = ResultNodesUtil.getUnresolvedNodes(multizipper.toRootNode());
         if (nextUnresolvedNodes.getZippers().size() == 0) {
-            return Mono.just(nextUnresolvedNodes);
+            return CompletableFuture.completedFuture(nextUnresolvedNodes);
         }
         List<MultiZipper> groups = groupNodesIntoBatches(nextUnresolvedNodes);
-        return nextStepImpl(groups).flatMap(this::nextStep);
+        return nextStepImpl(groups).thenCompose(this::nextStep);
     }
 
     // all multizipper have the same root
-    private Mono<MultiZipper> nextStepImpl(List<MultiZipper> unresolvedNodes) {
+    private CompletableFuture<MultiZipper> nextStepImpl(List<MultiZipper> unresolvedNodes) {
         Assert.assertNotEmpty(unresolvedNodes, "unresolvedNodes can't be empty");
         ExecutionResultNode commonRoot = unresolvedNodes.get(0).getCommonRoot();
-        Mono<List<List<ExecutionResultNodeZipper>>> listListMono = Flux.fromIterable(unresolvedNodes)
-                .flatMap(multiZipper -> fetchAndAnalyze(multiZipper.getZippers())).collectList();
 
-        return Common.flatList(listListMono)
-                .map(zippers -> new MultiZipper(commonRoot, zippers));
+        CompletableFuture<List<List<ExecutionResultNodeZipper>>> listListCF = Async2.flatMap(unresolvedNodes,
+                multiZipper -> fetchAndAnalyze(multiZipper.getZippers()));
+
+        return Common.flatList(listListCF)
+                .thenApply(zippers -> new MultiZipper(commonRoot, zippers));
 
     }
 
@@ -105,7 +108,7 @@ public class ReactorExecutionStrategyBatching {
     }
 
     //constrain: all fieldSubSelections have the same fields
-    private Mono<List<ExecutionResultNodeZipper>> fetchAndAnalyze(List<ExecutionResultNodeZipper> unresolvedNodes) {
+    private CompletableFuture<List<ExecutionResultNodeZipper>> fetchAndAnalyze(List<ExecutionResultNodeZipper> unresolvedNodes) {
         Assert.assertTrue(unresolvedNodes.size() > 0, "unresolvedNodes can't be empty");
 
         List<FieldSubSelection> fieldSubSelections = unresolvedNodes.stream()
@@ -114,7 +117,7 @@ public class ReactorExecutionStrategyBatching {
         List<Object> sources = fieldSubSelections.stream().map(fieldSubSelection -> fieldSubSelection.getSource()).collect(Collectors.toList());
 
         // each field in the subSelection has n sources as input
-        List<Mono<List<FetchedValueAnalysis>>> fetchedValues = fieldSubSelections
+        List<CompletableFuture<List<FetchedValueAnalysis>>> fetchedValues = fieldSubSelections
                 .get(0)
                 .getFields()
                 .entrySet()
@@ -127,18 +130,14 @@ public class ReactorExecutionStrategyBatching {
                         return executionInfoFactory.newExecutionStepInfoForSubField(sameFields, executionResultNode.getExecutionStepInfo());
                     }).collect(Collectors.toList());
 
-                    Mono<List<FetchedValueAnalysis>> fetchedValueAnalyzis = valueFetcher
+                    CompletableFuture<List<FetchedValueAnalysis>> fetchedValueAnalyzis = valueFetcher
                             .fetchBatchedValues(sources, sameFields, newExecutionStepInfos)
-                            .map(fetchValue -> analyseValues(fetchValue, name, sameFields, newExecutionStepInfos));
+                            .thenApply(fetchValue -> analyseValues(fetchValue, name, sameFields, newExecutionStepInfos));
                     return fetchedValueAnalyzis;
                 })
                 .collect(toList());
 
-        return Flux.merge(fetchedValues).collectList().onErrorMap(throwable -> {
-            throwable.printStackTrace();
-            return throwable;
-        }).map(fetchedValuesMatrix -> {
-
+        return Async.each(fetchedValues).thenApply(fetchedValuesMatrix -> {
             List<ExecutionResultNodeZipper> result = new ArrayList<>();
             List<List<FetchedValueAnalysis>> newChildsPerNode = Common.transposeMatrix(fetchedValuesMatrix);
 
@@ -169,19 +168,19 @@ public class ReactorExecutionStrategyBatching {
 
 
     // only used for the root sub selection atm
-    private Flux<FetchedValueAnalysis> fetchAndAnalyze(FieldSubSelection fieldSubSelection) {
-        List<Mono<FetchedValueAnalysis>> fetchedValues = fieldSubSelection.getFields().entrySet().stream()
+    private CompletableFuture<List<FetchedValueAnalysis>> fetchAndAnalyze(FieldSubSelection fieldSubSelection) {
+        List<CompletableFuture<FetchedValueAnalysis>> fetchedValues = fieldSubSelection.getFields().entrySet().stream()
                 .map(entry -> {
                     List<Field> sameFields = entry.getValue();
                     String name = entry.getKey();
                     ExecutionStepInfo newExecutionStepInfo = executionInfoFactory.newExecutionStepInfoForSubField(sameFields, fieldSubSelection.getExecutionStepInfo());
                     return valueFetcher
                             .fetchValue(fieldSubSelection.getSource(), sameFields, newExecutionStepInfo)
-                            .map(fetchValue -> analyseValue(fetchValue, name, sameFields, newExecutionStepInfo));
+                            .thenApply(fetchValue -> analyseValue(fetchValue, name, sameFields, newExecutionStepInfo));
                 })
                 .collect(toList());
 
-        return Flux.merge(fetchedValues);
+        return Async.each(fetchedValues);
     }
 
     // only used for the root sub selection atm

@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
@@ -120,8 +121,12 @@ public class Common {
         return result;
     }
 
-    public static <T> Mono<List<T>> flastList(Mono<List<List<T>>> mono) {
+    public static <T> Mono<List<T>> flatList(Mono<List<List<T>>> mono) {
         return mono.map(Common::flatList);
+    }
+
+    public static <T> CompletableFuture<List<T>> flatList(CompletableFuture<List<List<T>>> cf) {
+        return cf.thenApply(Common::flatList);
     }
 
     public static <T> List<T> flatList(List<List<T>> listLists) {
