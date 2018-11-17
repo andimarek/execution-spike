@@ -47,9 +47,8 @@ public class ReactorExecutionStrategyBatching {
         return rootMono.flatMap(rootNode -> {
             MultiZipper unresolvedNodes = ResultNodesUtil.getUnresolvedNodes(rootNode);
             return nextStep(unresolvedNodes);
-        }).map(finalZipper -> {
-            return finalZipper.toRootNode();
-        }).cast(RootExecutionResultNode.class);
+        }).map(finalZipper -> finalZipper.toRootNode())
+                .cast(RootExecutionResultNode.class);
     }
 
 
@@ -97,7 +96,10 @@ public class ReactorExecutionStrategyBatching {
     private List<MultiZipper> groupNodesIntoBatches(MultiZipper unresolvedZipper) {
         Map<Map<String, List<Field>>, List<ExecutionResultNodeZipper>> zipperBySubSelection = unresolvedZipper.getZippers().stream()
                 .collect(groupingBy(executionResultNodeZipper -> executionResultNodeZipper.getCurNode().getFetchedValueAnalysis().getFieldSubSelection().getFields()));
-        return zipperBySubSelection.entrySet().stream()
+
+        return zipperBySubSelection
+                .entrySet()
+                .stream()
                 .map(entry -> new MultiZipper(unresolvedZipper.getCommonRoot(), entry.getValue()))
                 .collect(Collectors.toList());
     }
@@ -112,7 +114,11 @@ public class ReactorExecutionStrategyBatching {
         List<Object> sources = fieldSubSelections.stream().map(fieldSubSelection -> fieldSubSelection.getSource()).collect(Collectors.toList());
 
         // each field in the subSelection has n sources as input
-        List<Mono<List<FetchedValueAnalysis>>> fetchedValues = fieldSubSelections.get(0).getFields().entrySet().stream()
+        List<Mono<List<FetchedValueAnalysis>>> fetchedValues = fieldSubSelections
+                .get(0)
+                .getFields()
+                .entrySet()
+                .stream()
                 .map(entry -> {
                     List<Field> sameFields = entry.getValue();
                     String name = entry.getKey();

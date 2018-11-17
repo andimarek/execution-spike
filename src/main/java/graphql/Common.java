@@ -2,6 +2,7 @@ package graphql;
 
 import graphql.execution.MissingRootTypeException;
 import graphql.language.OperationDefinition;
+import graphql.old.ResultLeaf;
 import graphql.schema.GraphQLObjectType;
 import graphql.schema.GraphQLSchema;
 import reactor.core.publisher.Mono;

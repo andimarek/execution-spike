@@ -1,4 +1,4 @@
-package graphql;
+package graphql.old;
 
 import graphql.execution.ExecutionPath;
 

@@ -1,6 +1,7 @@
 package graphql
 
 import graphql.execution.ExecutionId
+import graphql.old.ReactorStreamingExecution
 import graphql.schema.DataFetcher
 import spock.lang.Specification
 

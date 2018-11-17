@@ -1,5 +1,8 @@
-package graphql;
+package graphql.old;
 
+import graphql.Common;
+import graphql.ExecutionInput;
+import graphql.FieldSubSelection;
 import graphql.execution.ExecutionContext;
 import graphql.execution.ExecutionId;
 import graphql.execution.ExecutionPath;
